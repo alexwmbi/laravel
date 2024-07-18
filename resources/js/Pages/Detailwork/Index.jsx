@@ -15,19 +15,9 @@ export default function Index({ auth, workers, taskid }) {
     );
   }
 
-    const { data, setData, post  } = useForm(strcreate()
+    const { setData, post  } = useForm(strcreate()
      
     );
-
-  
-  //const [isChecked, setIsChecked] = useState( false);
-  /*  const [checked, setChecked] = useState(false);
-
-  const [state, setState] = useState({
-    hooks: false
-  }) */
-
- 
 
   function checkboxHandler(e) {
     let isSelected = e.target.checked;
@@ -45,29 +35,8 @@ export default function Index({ auth, workers, taskid }) {
   }
 
 
-  function hoursHandler (e) {
-    let hoursValue = parseInt(e.target.value);
-    //console.log(hoursValue);
-    let idValue = e.target.id;
-    //console.log(idValue);
-
-  }
-
-  function hoursGetter(selectedItems){
-    
-    let hoursValue = parseInt(getElementById());
-   
-    console.log(intArr);
-    let idValue = e.target.id;
-
-  }
-
   const onSubmit = (e) => {
-    //hoursGetter(selectedItems);
-   
-
-    //console.log(idValue,hoursValue);
-
+    
     e.preventDefault();
 
     post(route("detailwork.store"));

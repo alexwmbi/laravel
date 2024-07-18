@@ -17,25 +17,19 @@ class ClientController extends Controller
     {
         $query = Client::query();
 
-        //Ricerca per nome
-        if(request("name")){
-            $query->where("name","like","%".request("name")."%");
+        //Ricerca cliente
+        if (request("name")) {
+            $query->where("name", "like", "%" . request("name") . "%");
         }
-
-       // $testclient = Client::with('works')->get();
 
         $clients = $query->paginate(10);
 
 
-        //$testclient = Client::with('works')->get();
-      
-        
+        return inertia('Client/Index', [
 
-        return inertia('Client/Index',[
-    
-     "clients" => ClientResource::collection($clients),
-     "queryParams" => request()->query() ?: null,
-     'success' => session('success'),
+            "clients" => ClientResource::collection($clients),
+            "queryParams" => request()->query() ?: null,
+            'success' => session('success'),
 
         ]);
     }
@@ -55,7 +49,7 @@ class ClientController extends Controller
     {
         $data = $request->validated();
         Client::create($data);
-       return to_route("client.index")->with('success','Nuovo cliente inserito');
+        return to_route("client.index")->with('success', 'Nuovo cliente inserito');
     }
 
     /**
@@ -64,76 +58,36 @@ class ClientController extends Controller
     public function show(Client $client)
     {
         Session::put('client_id', $client->id);
-               
-                
-        
-       // $works2 = Client::with('works')->get();
-       //$works2 =  WorkResource::where("client_id",$client->id);
-       //$works2 = Client::where( $client->id)->get();
-        //$works2 = $client->works();
-       
-       // $works = Client::with('works')->get();
-        //$works2 = new WorkResource($client->id); 
+
         $client = new ClientResource($client);
-        
-       // dd($client , $client->works()->get());
-        
-        
-        //$query = $client->works()->where("work_id",'=',"1")->get();
         $query = $client->works()->get();
 
-       // dd($query);
-        
-       if (request("status") ) {
-        $query = $client->works()->where("status", request("status"))->get();
-        //$client->works()->where("status", request("status"))->get();
-    }
+        if (request("status")) {
+            $query = $client->works()->where("status", request("status"))->get();
 
-        //Ricerca per nome
-        if(request("name")){
-           
-          $query = $client->works()->where("name","like","%".request("name")."%")->get();
-          //$client->works()->where("name","like","%".request("name")."%")->get();
         }
 
 
-        
+        if (request("name")) {
+
+            $query = $client->works()->where("name", "like", "%" . request("name") . "%")->get();
+
+        }
 
 
         if (request("status") && request("name")) {
-            $query = $client->works()->where("status", request("status"))->where("name","like","%".request("name")."%") ->get();
-           
-            
-        } 
-       
+            $query = $client->works()->where("status", request("status"))->where("name", "like", "%" . request("name") . "%")->get();
 
 
-        //$works = $works->where("name",'=',"lavoro 3");
-        //dd($works);
-        //$testclient = Client::with('works')->get();
-        //dd($client,$works);
-        //var_dump($works);
+        }
 
 
-        
-            //$test2 = Client::find($client->id);
-            //dd($testclient);
-
-            // if(request()->query())
-
-            // {
-     
-            //  dd(request()->query());
-            // }
-
-
-
-        return inertia('Client/Show' ,[
+        return inertia('Client/Show', [
 
             'client' => $client,
             'works' => $query,
             "queryParams" => request()->query() ?: null,
-            // "works2"  => WorkResource::collection($works)
+
         ]);
     }
 
@@ -150,8 +104,8 @@ class ClientController extends Controller
      */
     public function update(UpdateClientRequest $request, Client $client)
     {
-        $client -> update($request->validated());
-        return to_route('client.index')->with('success','Cliente modificato');
+        $client->update($request->validated());
+        return to_route('client.index')->with('success', 'Cliente modificato');
     }
 
     /**
@@ -159,9 +113,9 @@ class ClientController extends Controller
      */
     public function destroy(Client $client)
     {
-        
+
         $client->delete();
         return to_route('client.index')
-        ->with('success', "Cliente eliminato");
+            ->with('success', "Cliente eliminato");
     }
 }

@@ -21,14 +21,7 @@ class MaterialController extends Controller
             $query->where("name","like","%".request("name")."%");
         }
 
-       // $testclient = Client::with('works')->get();
-
         $materials = $query->get();
-
-
-        //$testclient = Client::with('works')->get();
-      
-        
 
         return inertia('Material/Index',[
     

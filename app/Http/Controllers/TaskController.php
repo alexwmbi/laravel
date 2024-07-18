@@ -2,14 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\DetailworkResource;
-use App\Http\Resources\MaterialResource;
 use App\Http\Resources\TaskResource;
-use App\Http\Resources\WorkerResource;
 use App\Models\Task;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
-use App\Models\Work;
 use Session;
 
 class TaskController extends Controller
@@ -37,13 +33,12 @@ class TaskController extends Controller
     {
         $work_id = Session::get('work_id');
 
-      
+
         $data = $request->validated();
         $task = Task::create($data);
         $task->works()->attach($work_id);
-        //dd($work_id);
 
-        return to_route("work.show", $work_id)->with('success','Nuovo task inserito');
+        return to_route("work.show", $work_id)->with('success', 'Nuovo task inserito');
     }
 
     /**
@@ -51,30 +46,28 @@ class TaskController extends Controller
      */
     public function show(Task $task)
     {
-                
-     
-        $materials =   $task->materials()->get();
-        $workers =   $task->workers()->get();
-        $workersdetails =   $task->detailworkers()->get();
-        $materialsdetails =   $task->detailmaterials()->get();
+
+
+        $materials = $task->materials()->get();
+        $workers = $task->workers()->get();
+        $workersdetails = $task->detailworkers()->get();
+        $materialsdetails = $task->detailmaterials()->get();
         $hoursTot = $task->detailworkers()->sum('hours');
-        $materialsTot = $task->detailmaterials()->sum('priece')*$task->detailmaterials()->sum('quantity');
-       // dd($materialsTot);
-    
-        return inertia('Task/Show' ,[
+        $materialsTot = $task->detailmaterials()->sum('priece') * $task->detailmaterials()->sum('quantity');
 
-             'materials' => $materials,
-             'task' => new TaskResource($task) ,
-             'workers' => $workers ,
-             'workersdetails' => $workersdetails,
-             'materialsdetails' => $materialsdetails,
-             'hoursTot' => $hoursTot,
-             'materialsTot' => $materialsTot,
-            // 'works' => $query,
-             "queryParams" => request()->query() ?: null,
-            // "works2"  => WorkResource::collection($works)
+
+        return inertia('Task/Show', [
+
+            'materials' => $materials,
+            'task' => new TaskResource($task),
+            'workers' => $workers,
+            'workersdetails' => $workersdetails,
+            'materialsdetails' => $materialsdetails,
+            'hoursTot' => $hoursTot,
+            'materialsTot' => $materialsTot,
+            "queryParams" => request()->query() ?: null,
+
         ]);
-
 
     }
 
@@ -92,9 +85,8 @@ class TaskController extends Controller
     public function update(UpdateTaskRequest $request, Task $task)
     {
         $work_id = Session::get('work_id');
-
-        $task -> update($request->validated());
-        return to_route('work.show',$work_id)->with('success','Cliente modificato');
+        $task->update($request->validated());
+        return to_route('work.show', $work_id)->with('success', 'Cliente modificato');
     }
 
     /**
@@ -106,7 +98,7 @@ class TaskController extends Controller
         $work_id = Session::get('work_id');
 
         $task->delete();
-        return to_route('work.show',$work_id)
-        ->with('success', "Task eliminato");
+        return to_route('work.show', $work_id)
+            ->with('success', "Task eliminato");
     }
 }

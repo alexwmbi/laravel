@@ -17,17 +17,17 @@ class WorkerController extends Controller
 
         $query = Worker::query();
 
-        if(request("name")){
-            $query->where("name","like","%".request("name")."%");
+        if (request("name")) {
+            $query->where("name", "like", "%" . request("name") . "%");
         }
 
         $workers = $query->paginate(10);
 
-        return inertia('Worker/Index',[
-    
-     "workers" => WorkerResource::collection($workers),
-     "queryParams" => request()->query() ?: null,
-     'success' => session('success'),
+        return inertia('Worker/Index', [
+
+            "workers" => WorkerResource::collection($workers),
+            "queryParams" => request()->query() ?: null,
+            'success' => session('success'),
 
         ]);
 
@@ -38,7 +38,7 @@ class WorkerController extends Controller
      */
     public function create()
     {
-        return inertia("Worker/Create");  
+        return inertia("Worker/Create");
     }
 
     /**
@@ -48,7 +48,7 @@ class WorkerController extends Controller
     {
         $data = $request->validated();
         Worker::create($data);
-       return to_route("worker.index")->with('success','Nuovo operaio inserito');
+        return to_route("worker.index")->with('success', 'Nuovo operaio inserito');
     }
 
     /**
@@ -72,8 +72,8 @@ class WorkerController extends Controller
      */
     public function update(UpdateWorkerRequest $request, Worker $worker)
     {
-        $worker -> update($request->validated());
-        return to_route('worker.index')->with('success','Operaio modificato');
+        $worker->update($request->validated());
+        return to_route('worker.index')->with('success', 'Operaio modificato');
     }
 
     /**
@@ -83,6 +83,6 @@ class WorkerController extends Controller
     {
         $worker->delete();
         return to_route('worker.index')
-        ->with('success', "Operaio eliminato");
+            ->with('success', "Operaio eliminato");
     }
 }

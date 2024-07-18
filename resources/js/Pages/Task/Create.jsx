@@ -8,17 +8,15 @@ import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Create({ auth }) {
   const { data, setData, post, errors, reset } = useForm({
-    
     name: "",
-    code: "", 
-    category: "", 
+    code: "",
+    category: "",
     description: "",
     starting_date: "",
     due_date: "",
     note: "",
 
-   /*  name code materials hours description note work_id workers starting_date due_date created_at updated_at */
-
+    /*  name code materials hours description note work_id workers starting_date due_date created_at updated_at */
   });
 
   const onSubmit = (e) => {
@@ -33,8 +31,8 @@ export default function Create({ auth }) {
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-             Nuovo Task
-             {`Nuovo Task `}
+            Nuovo Task
+            {`Nuovo Task `}
           </h2>
         </div>
       }
@@ -44,13 +42,10 @@ export default function Create({ auth }) {
       <div className="py-12">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-          <form
+            <form
               onSubmit={onSubmit}
               className="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg"
             >
-              
-
-
               <div className="mt-4">
                 <InputLabel htmlFor="task_name" value="Nome Task " />
 
@@ -66,8 +61,6 @@ export default function Create({ auth }) {
 
                 <InputError message={errors.name} className="mt-2" />
               </div>
-
-
 
               <div className="mt-4">
                 <InputLabel htmlFor="task_code" value="Codice Task" />
@@ -85,8 +78,6 @@ export default function Create({ auth }) {
                 <InputError message={errors.code} className="mt-2" />
               </div>
 
-
-
               <div className="mt-4">
                 <InputLabel htmlFor="task_category" value="Categoria" />
 
@@ -103,13 +94,8 @@ export default function Create({ auth }) {
                 <InputError message={errors.category} className="mt-2" />
               </div>
 
-
-
               <div className="mt-4">
-                <InputLabel
-                  htmlFor="task_description"
-                  value="Descrizione"
-                />
+                <InputLabel htmlFor="task_description" value="Descrizione" />
 
                 <TextAreaInput
                   id="task_description"
@@ -122,12 +108,8 @@ export default function Create({ auth }) {
                 <InputError message={errors.description} className="mt-2" />
               </div>
 
-
               <div className="mt-4">
-              <InputLabel
-                  htmlFor="starting_date"
-                  value="Data Inizio"
-                />
+                <InputLabel htmlFor="starting_date" value="Data Inizio" />
 
                 <TextInput
                   id="starting_date"
@@ -142,10 +124,7 @@ export default function Create({ auth }) {
               </div>
 
               <div className="mt-4">
-              <InputLabel
-                  htmlFor="due_date"
-                  value="Data Consegna"
-                />
+                <InputLabel htmlFor="due_date" value="Data Consegna" />
 
                 <TextInput
                   id="due_date"
@@ -159,15 +138,8 @@ export default function Create({ auth }) {
                 <InputError message={errors.due_date} className="mt-2" />
               </div>
 
-              
-
-
-
               <div className="mt-4">
-                <InputLabel
-                  htmlFor="task_note"
-                  value="Note"
-                />
+                <InputLabel htmlFor="task_note" value="Note" />
 
                 <TextAreaInput
                   id="task_note"
@@ -180,9 +152,6 @@ export default function Create({ auth }) {
                 <InputError message={errors.note} className="mt-2" />
               </div>
 
-
-
-
               <div className="mt-4 text-right">
                 <Link
                   href={route("client.index")}
@@ -194,8 +163,7 @@ export default function Create({ auth }) {
                   OK
                 </button>
               </div>
-
-              </form>
+            </form>
           </div>
         </div>
       </div>

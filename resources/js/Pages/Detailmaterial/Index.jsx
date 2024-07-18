@@ -5,29 +5,13 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import { useState } from "react";
 
 export default function Index({ auth, materials, taskid }) {
-
-    
   const [selectedItems, setSelectedItems] = useState([]);
 
-  function strcreate(selectedItems){
-    return (
-      selectedItems
-    );
+  function strcreate(selectedItems) {
+    return selectedItems;
   }
 
-    const { data, setData, post  } = useForm(strcreate()
-     
-    );
-
-  
-  //const [isChecked, setIsChecked] = useState( false);
-  /*  const [checked, setChecked] = useState(false);
-
-  const [state, setState] = useState({
-    hooks: false
-  }) */
-
- 
+  const { data, setData, post } = useForm(strcreate());
 
   function checkboxHandler(e) {
     let isSelected = e.target.checked;
@@ -44,30 +28,7 @@ export default function Index({ auth, materials, taskid }) {
     }
   }
 
-
-  function hoursHandler (e) {
-    let hoursValue = parseInt(e.target.value);
-    //console.log(hoursValue);
-    let idValue = e.target.id;
-    //console.log(idValue);
-
-  }
-
-  function hoursGetter(selectedItems){
-    
-    let hoursValue = parseInt(getElementById());
-   
-    console.log(intArr);
-    let idValue = e.target.id;
-
-  }
-
   const onSubmit = (e) => {
-    //hoursGetter(selectedItems);
-   
-
-    //console.log(idValue,hoursValue);
-
     e.preventDefault();
 
     post(route("detailmaterial.store"));
@@ -102,12 +63,10 @@ export default function Index({ auth, materials, taskid }) {
                       <th className="px-3 py-2">DESCRIZIONE</th>
                       <th className="px-3 py-2">UM</th>
                       <th className="px-3 py-2">QUANTITA</th>
-                     
                     </tr>
                   </thead>
                   <tbody>
                     {materials.data.map((material, index) => (
-                      
                       <tr key={index}>
                         <td>
                           <Checkbox
@@ -130,35 +89,33 @@ export default function Index({ auth, materials, taskid }) {
                         </td>
                         <td>
                           <TextInput
-                            id={"hours"+material.id}
+                            id={"hours" + material.id}
                             type="text"
-                            name={"hours"+material.id}
-                            
+                            name={"hours" + material.id}
                             className="mt-1 block w-full"
                             isFocused={true}
-                            onChange={(e) => setData("quantity"+material.id, e.target.value)}
-
-                             
+                            onChange={(e) =>
+                              setData("quantity" + material.id, e.target.value)
+                            }
                           />
-                           {/* <pre>{JSON.stringify(material,undefined, 2)}</pre>  */}
+                          {/* <pre>{JSON.stringify(material,undefined, 2)}</pre>  */}
                         </td>
-                       
                       </tr>
                     ))}
                   </tbody>
                 </table>
 
                 <div className="mt-4 text-right">
-                <Link
-                  href={route("task.show",taskid)}
-                  className="bg-gray-100 py-1 px-3 text-gray-800 rounded shadow transition-all hover:bg-gray-200 mr-2"
-                >
-                  Annulla
-                </Link>
-                <button className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600">
-                  OK
-                </button>
-              </div>
+                  <Link
+                    href={route("task.show", taskid)}
+                    className="bg-gray-100 py-1 px-3 text-gray-800 rounded shadow transition-all hover:bg-gray-200 mr-2"
+                  >
+                    Annulla
+                  </Link>
+                  <button className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600">
+                    OK
+                  </button>
+                </div>
               </form>
             </div>
           </div>

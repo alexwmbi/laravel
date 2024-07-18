@@ -1,9 +1,6 @@
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
-
 import TextAreaInput from "@/Components/TextAreaInput";
-import SelectInput from "@/Components/SelectInput";
-
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
@@ -18,8 +15,7 @@ export default function Edit({ auth, task }) {
     due_date: task.due_date || "",
     note: task.note || "",
   });
-  /*  name code materials hours description note work_id workers starting_date due_date created_at updated_at */
-
+ 
   const onSubmit = (e) => {
     e.preventDefault();
 

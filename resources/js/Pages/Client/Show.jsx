@@ -16,7 +16,6 @@ export default function Show({ auth, client, works, queryParams = null }) {
       delete queryParams[name];
     }
 
-    //router.get(route("work.index"), queryParams);
     router.get(route("client.show", client.id), queryParams);
   };
 
