@@ -32,8 +32,6 @@ class TaskController extends Controller
     public function store(StoreTaskRequest $request)
     {
         $work_id = Session::get('work_id');
-
-
         $data = $request->validated();
         $task = Task::create($data);
         $task->works()->attach($work_id);
@@ -54,9 +52,12 @@ class TaskController extends Controller
         $materialsdetails = $task->detailmaterials()->get();
         $hoursTot = $task->detailworkers()->sum('hours');
         $materialsTot = $task->detailmaterials()->sum('priece') * $task->detailmaterials()->sum('quantity');
-       //$materialsQuantityId = $task->detailmaterials()->get('id','priece');
-       //$materialsPrieceId = $task->detailmaterials()->sum(intval('priece')* intval('quantity'));
-
+        $materialsTot = $task->detailmaterials()->selectRaw('detailmaterials.priece * detailmaterials.quantity as price_quantity')->get();
+        $price_quantity = 0;
+        foreach ($materialsTot as $key => $value) {
+            if ($key = 'price_quantity')
+                $price_quantity = $price_quantity + $value->price_quantity;
+        }
 
         return inertia('Task/Show', [
 
@@ -66,7 +67,7 @@ class TaskController extends Controller
             'workersdetails' => $workersdetails,
             'materialsdetails' => $materialsdetails,
             'hoursTot' => $hoursTot,
-            'materialsTot' => $materialsTot,
+            'materialsTot' => $price_quantity,
             "queryParams" => request()->query() ?: null,
 
         ]);

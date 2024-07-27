@@ -2,8 +2,7 @@ import { Link } from "@inertiajs/react";
 
 export default function TaskTable({ task, hoursTot , materialsTot}) {
   return (
-    <>
-     {/* <pre>{JSON.stringify(task,undefined, 2)}</pre>  */}
+    <>  
       <dir className="overflow-auto">
         <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
           <thead className="text-xs text-gray-700 uppercase">
