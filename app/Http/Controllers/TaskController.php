@@ -51,7 +51,7 @@ class TaskController extends Controller
         $workersdetails = $task->detailworkers()->get();
         $materialsdetails = $task->detailmaterials()->get();
         $hoursTot = $task->detailworkers()->sum('hours');
-        $materialsTot = $task->detailmaterials()->sum('priece') * $task->detailmaterials()->sum('quantity');
+        //$materialsTot = $task->detailmaterials()->sum('priece') * $task->detailmaterials()->sum('quantity');
         $materialsTot = $task->detailmaterials()->selectRaw('detailmaterials.priece * detailmaterials.quantity as price_quantity')->get();
         $price_quantity = 0;
         foreach ($materialsTot as $key => $value) {

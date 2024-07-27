@@ -52,18 +52,6 @@ class DetailworkController extends Controller
     public function store(StoreDetailworkRequest $request)
     {
 
-        /*  function get_string_between($string, $start, $end)
-        {
-            $string = ' ' . $string;
-            $ini = strpos($string, $start);
-            if ($ini == 0)
-                return '';
-            $ini += strlen($start);
-            $len = strpos($string, $end, $ini) - $ini;
-            return substr($string, $ini, $len);
-        }    */
-
-
         $formatStr = new FormatStr;
         $taskId = $formatStr->get_string_between(\URL::previous(), "&id=", "&");
         $HoursArray = json_decode(str_replace("hours", "", $request->getContent()), true);
