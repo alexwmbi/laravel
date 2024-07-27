@@ -1,4 +1,14 @@
+
+import { Link , router } from "@inertiajs/react";
 export default function WorkersDetailsTable({ workers }) {
+
+  const deleteWorkdetail = (worker) => {
+    if (!window.confirm("Vuoi rimuovere questo operaio?")) {
+      return;
+    }
+    router.delete(route("detailwork.destroy", worker.id));
+  };
+
   return (
     <>
       {/* <pre>{JSON.stringify(workers,undefined, 2)}</pre>  */}
@@ -25,7 +35,18 @@ export default function WorkersDetailsTable({ workers }) {
                 <td className="px-3 py-2">{worker.code}</td>
                 <td className="px-3 py-2">{worker.hours}</td>
                 <td className="px-3 py-2">{worker.note}</td>
-                <td className="px-3 py-2 text-nowrap">Modifica Elimina</td>
+                <td className="px-3 py-2 text-nowrap">
+                        <Link href={route("detailwork.edit", worker)}
+                         className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1" >
+                          Modifica
+                        </Link>
+                        <button
+                            onClick={(e) => deleteWorkdetail(worker)}
+                            className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                          >
+                            Elimina
+                          </button>
+                      </td>
               </tr>
             ))}
           </tbody>

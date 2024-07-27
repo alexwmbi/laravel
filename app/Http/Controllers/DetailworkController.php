@@ -1,12 +1,18 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
+use App\Library\Formatter\FormatStr;
+
+use App\Http\Resources\DetailworkResource;
 use App\Http\Resources\WorkerResource;
 use App\Models\Detailwork;
 use App\Http\Requests\StoreDetailworkRequest;
 use App\Http\Requests\UpdateDetailworkRequest;
 use App\Models\Worker;
+
+
 
 
 class DetailworkController extends Controller
@@ -19,7 +25,6 @@ class DetailworkController extends Controller
 
         $taskid = request()->query("id");
         $detailWorker = Detailwork::select('worker_id')->where("task", $taskid)->distinct()->get();
-        ;
         $workers = Worker::query()->whereNotIn('id', $detailWorker)->get();
 
         return inertia('Detailwork/Index', [
@@ -47,8 +52,7 @@ class DetailworkController extends Controller
     public function store(StoreDetailworkRequest $request)
     {
 
-
-        function get_string_between($string, $start, $end)
+        /*  function get_string_between($string, $start, $end)
         {
             $string = ' ' . $string;
             $ini = strpos($string, $start);
@@ -57,12 +61,11 @@ class DetailworkController extends Controller
             $ini += strlen($start);
             $len = strpos($string, $end, $ini) - $ini;
             return substr($string, $ini, $len);
-        }
+        }    */
 
 
-
-
-        $taskId = get_string_between(\URL::previous(), "&id=", "&");
+        $formatStr = new FormatStr;
+        $taskId = $formatStr->get_string_between(\URL::previous(), "&id=", "&");
         $HoursArray = json_decode(str_replace("hours", "", $request->getContent()), true);
         $WorkerName = Worker::query();
 
@@ -96,10 +99,12 @@ class DetailworkController extends Controller
      */
     public function edit(Detailwork $detailwork)
     {
-        if (request("selectedItems")) {
+        /*   if (request("selectedItems")) {
 
-            dd(request("selectedItems"));
-        }
+              dd(request("selectedItems"));
+          } */
+
+        return inertia("Detailwork/Edit", ['workerdetail' => new DetailworkResource($detailwork)]);
     }
 
     /**
@@ -107,7 +112,9 @@ class DetailworkController extends Controller
      */
     public function update(UpdateDetailworkRequest $request, Detailwork $detailwork)
     {
-        //
+
+        $detailwork->update($request->validated());
+        return to_route('task.show', $detailwork->task)->with('success', 'Operaio modificato');
     }
 
     /**
@@ -115,6 +122,8 @@ class DetailworkController extends Controller
      */
     public function destroy(Detailwork $detailwork)
     {
-        //
+        $detailwork->delete();
+        return to_route('task.show', $detailwork->task)
+            ->with('success', "Operaio rimosso dal task");
     }
 }

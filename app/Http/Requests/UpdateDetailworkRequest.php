@@ -11,7 +11,7 @@ class UpdateDetailworkRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,17 @@ class UpdateDetailworkRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+           
+            "code" => ['string','max:255', 'nullable'],
+            "worker_id" => ['string', 'nullable'],
+            "hours" => ['numeric', 'nullable'],
+            "client" => ['string', 'nullable'],
+            "work" => ['string', 'nullable'],
+            "task" => ['string', 'nullable'],
+            "note" => ['string', 'nullable'],
+            "status" => ['string', 'nullable'],
+            "starting_date" => ['string', 'nullable'],
+            "end_date" => ['string', 'nullable'],
         ];
     }
 }

@@ -54,6 +54,8 @@ class TaskController extends Controller
         $materialsdetails = $task->detailmaterials()->get();
         $hoursTot = $task->detailworkers()->sum('hours');
         $materialsTot = $task->detailmaterials()->sum('priece') * $task->detailmaterials()->sum('quantity');
+       //$materialsQuantityId = $task->detailmaterials()->get('id','priece');
+       //$materialsPrieceId = $task->detailmaterials()->sum(intval('priece')* intval('quantity'));
 
 
         return inertia('Task/Show', [

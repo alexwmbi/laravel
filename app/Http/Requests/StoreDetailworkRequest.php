@@ -25,14 +25,14 @@ class StoreDetailworkRequest extends FormRequest
             
             "code" => ['string','max:255', 'nullable'],
             "worker_id" => ['string', 'nullable'],
-            "hours" => ['decmal', 'nullable'],
-            "client" => ['client', 'nullable'],
-            "work" => ['work', 'nullable'],
-            "task" => ['task', 'nullable'],
-            "note" => ['note', 'nullable'],
-            "status" => ['status', 'nullable'],
-            "starting_date" => ['starting_date', 'nullable'],
-            "end_date" => ['end_date', 'nullable'],
+            "hours" => ['numeric', 'nullable'],
+            "client" => ['string', 'nullable'],
+            "work" => ['string', 'nullable'],
+            "task" => ['string', 'nullable'],
+            "note" => ['string', 'nullable'],
+            "status" => ['string', 'nullable'],
+            "starting_date" => ['string', 'nullable'],
+            "end_date" => ['string', 'nullable'],
             
         ];
     }

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Library\Formatter\FormatStr;
+
+use App\Http\Resources\DetailmaterialResource;
 use App\Http\Resources\MaterialResource;
 use App\Models\Detailmaterial;
 use App\Http\Requests\StoreDetailmaterialRequest;
@@ -18,9 +21,7 @@ class DetailmaterialController extends Controller
         $taskid = request()->query("id");
 
         $detailMaterial = Detailmaterial::select('material_id')->where("task", $taskid)->distinct()->get();
-        ;
-
-
+        
         $materials = Material::query()->whereNotIn('id', array_values(array_filter($detailMaterial->toArray())))->get();
 
 
@@ -46,20 +47,9 @@ class DetailmaterialController extends Controller
      */
     public function store(StoreDetailmaterialRequest $request)
     {
-        function get_string_between($string, $start, $end)
-        {
-            $string = ' ' . $string;
-            $ini = strpos($string, $start);
-            if ($ini == 0)
-                return '';
-            $ini += strlen($start);
-            $len = strpos($string, $end, $ini) - $ini;
-            return substr($string, $ini, $len);
-        }
-
-
-        $taskId = get_string_between(\URL::previous(), "&id=", "&");
-
+        
+        $formatStr = new FormatStr ;
+        $taskId =  $formatStr->get_string_between(\URL::previous(), "&id=", "&");        
         $HoursArray = json_decode(str_replace("quantity", "", $request->getContent()), true);
 
         $WorkerName = Material::query();
@@ -99,7 +89,8 @@ class DetailmaterialController extends Controller
      */
     public function edit(Detailmaterial $detailmaterial)
     {
-        //
+
+        return inertia("Detailmaterial/Edit", ['materialdetail' => new DetailmaterialResource($detailmaterial)]);
     }
 
     /**
@@ -107,7 +98,8 @@ class DetailmaterialController extends Controller
      */
     public function update(UpdateDetailmaterialRequest $request, Detailmaterial $detailmaterial)
     {
-        //
+        $detailmaterial->update($request->validated());
+        return to_route('task.show',$detailmaterial->task)->with('success', 'Materiale modificato');
     }
 
     /**
@@ -115,6 +107,8 @@ class DetailmaterialController extends Controller
      */
     public function destroy(Detailmaterial $detailmaterial)
     {
-        //
+        $detailmaterial->delete();
+        return to_route('task.show',$detailmaterial->task)
+        ->with('success', "Materiale rimosso dal task");
     }
 }
