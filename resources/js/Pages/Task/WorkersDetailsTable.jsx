@@ -1,7 +1,5 @@
-
-import { Link , router } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 export default function WorkersDetailsTable({ workers }) {
-
   const deleteWorkdetail = (worker) => {
     if (!window.confirm("Vuoi rimuovere questo operaio?")) {
       return;
@@ -27,26 +25,34 @@ export default function WorkersDetailsTable({ workers }) {
           <tbody>
             {workers.map((worker) => (
               <tr
-                className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 "
+                className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
                 key={worker.id}
               >
-                <td className="px-3 py-2">{worker.worker_id}</td>
-                <td className="px-3 py-2">{worker.name}</td>
+                <td className="px-3 py-2">{worker.id}</td>
+                <th className="px-3 py-2 text-white ">
+                  <p className="text-black hover:text-indigo-600">
+                    <Link href={route("worker.show", worker.worker_id)}>
+                      {worker.name}
+                    </Link>
+                  </p>
+                </th>
                 <td className="px-3 py-2">{worker.code}</td>
                 <td className="px-3 py-2">{worker.hours}</td>
                 <td className="px-3 py-2">{worker.note}</td>
                 <td className="px-3 py-2 text-nowrap">
-                        <Link href={route("detailwork.edit", worker)}
-                         className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1" >
-                          Modifica
-                        </Link>
-                        <button
-                            onClick={(e) => deleteWorkdetail(worker)}
-                            className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
-                          >
-                            Elimina
-                          </button>
-                      </td>
+                  <Link
+                    href={route("detailwork.edit", worker)}
+                    className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                  >
+                    Modifica
+                  </Link>
+                  <button
+                    onClick={(e) => deleteWorkdetail(worker)}
+                    className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                  >
+                    Elimina
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

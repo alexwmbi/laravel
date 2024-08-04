@@ -37,11 +37,11 @@ export default function Index({
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Catelogo
+            Catalogo
           </h2>
           <Link
             href={route("material.create")}
-            className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600"
+            className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
           >
             Nuovo Materiale
           </Link>
@@ -97,7 +97,7 @@ export default function Index({
                 <tbody>
                   {materials.data.map((material) => (
                     <tr
-                      className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 "
+                      className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
                       key={material.id}
                     >
                       <td className="px-3 py-2">{material.id}</td>

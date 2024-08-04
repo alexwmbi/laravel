@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\TaskResource;
 use App\Http\Resources\WorkerResource;
+use App\Models\Detailwork;
+use App\Models\Task;
 use App\Models\Worker;
 use App\Http\Requests\StoreWorkerRequest;
 use App\Http\Requests\UpdateWorkerRequest;
@@ -56,7 +59,28 @@ class WorkerController extends Controller
      */
     public function show(Worker $worker)
     {
-        //
+        
+        $workerdetail = new WorkerResource($worker);
+        $query = $workerdetail->where('id',$worker->id)->get();
+        //$detailWorker = Detailwork::select('task')->where("worker_id", $worker->id)->distinct()->get();
+        $taskworker = $worker->tasks()->get();
+        // dd($query);
+        /* for ($i=0; $i <count($detailWorker) ; $i++) { 
+           // $taskworker[$i+1] = Task::all()->where('id',$detailWorker[$i]->task);
+           $taskworker = Task::all()->where('id',$detailWorker[$i]->task);
+        }
+ */
+        
+
+        return inertia('Worker/Show', [
+
+            'worker' => $query,
+            'taskworker'  => $taskworker,
+            //'taskworker'  => new TaskResource($taskworker),
+            "queryParams" => request()->query() ?: null,
+
+        ]);
+
     }
 
     /**

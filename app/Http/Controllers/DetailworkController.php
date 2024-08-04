@@ -11,6 +11,7 @@ use App\Models\Detailwork;
 use App\Http\Requests\StoreDetailworkRequest;
 use App\Http\Requests\UpdateDetailworkRequest;
 use App\Models\Worker;
+use Illuminate\Support\Facades\DB;
 
 
 
@@ -67,8 +68,11 @@ class DetailworkController extends Controller
                 'code' => str_replace('"}]', "", str_replace('[{"code":"', "", $WorkerName->select('code')->where("id", "=", $x)->get()))
             ];
 
+                      
             $detailwork = Detailwork::create($attribute);
             $detailwork->tasks()->attach($taskId);
+            DB::statement('insert into task_worker (task_id , worker_id) values (?,?)',[$taskId,$x]);
+           
 
         }
         return to_route("task.show", $taskId)->with('success', 'Nuovo Operaio aggiunto');

@@ -59,11 +59,13 @@ export default function WorkTasksTable({ work, tasks, queryParams }) {
           <tbody>
             {tasks.data.map((task) => (
               <tr
-                className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 "
+                className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
                 key={task.id}
               >
-                <th className="px-3 py-2 text-white hover:underline">
-                  <Link href={route("task.show", task.id)}>{task.name}</Link>
+                <th className="px-3 py-2 text-white ">
+                  <p className="text-black hover:text-indigo-600">
+                    <Link href={route("task.show", task.id)}>{task.name}</Link>
+                  </p>
                 </th>
                 <td className="px-3 py-2">{task.code}</td>
                 <td className="px-3 py-2">{task.category}</td>

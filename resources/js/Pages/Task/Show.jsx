@@ -19,8 +19,8 @@ export default function Show({
     <AuthenticatedLayout
       user={auth.user}
       header={
-        <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-          {`Task "${task.name}"`}
+        <h2 className="font-semibold text-xl text-blue-500 dark:text-gray-200 leading-tight">
+          {`Task > ${task.name}`}
         </h2>
       }
     >
@@ -44,7 +44,7 @@ export default function Show({
                 </h2>
                 <Link
                   href={route("detailmaterial.index", task)}
-                  className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600"
+                  className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
                 >
                   Aggiungi Materiale
                 </Link>
@@ -61,7 +61,7 @@ export default function Show({
                 </h2>
                 <Link
                   href={route("detailwork.index", task)}
-                  className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600"
+                  className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
                 >
                   Aggiungi Operaio
                 </Link>

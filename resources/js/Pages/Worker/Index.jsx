@@ -27,7 +27,6 @@ export default function Index({ auth, workers, queryParams = null, success }) {
     router.delete(route("worker.destroy", worker.id));
   };
 
-
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -38,7 +37,7 @@ export default function Index({ auth, workers, queryParams = null, success }) {
           </h2>
           <Link
             href={route("worker.create")}
-            className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600"
+            className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
           >
             Inserisci Operaio
           </Link>
@@ -47,21 +46,17 @@ export default function Index({ auth, workers, queryParams = null, success }) {
     >
       <Head title="Operai" />
       {success && (
-              <div className="bg-emerald-500 py-2 px-4 text-white rounded">
-                {success}
-              </div>
-            )}
+        <div className="bg-emerald-500 py-2 px-4 text-white rounded">
+          {success}
+        </div>
+      )}
       <div className="py-12">
-    
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-            
             <div className="p-6 text-gray-900 dark:text-gray-100">
               <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
                 <thead className="text-xs text-gray-700 uppercase">
                   <tr className="text-nowrap">
-                    <th className="px-3 py-2">ID</th>
                     <th className="px-3 py-2">NOME</th>
                     <th className="px-3 py-2">CODICE</th>
                     <th className="px-3 py-2">AZIONI</th>
@@ -69,7 +64,6 @@ export default function Index({ auth, workers, queryParams = null, success }) {
                 </thead>
                 <thead className="text-xs text-gray-700 uppercase">
                   <tr className="text-nowrap">
-                    <th className="px-3 py-2"></th>
                     <th className="px-3 py-2">
                       <TextInput
                         className="w-full"
@@ -87,25 +81,34 @@ export default function Index({ auth, workers, queryParams = null, success }) {
                 <tbody>
                   {workers.data.map((worker) => (
                     <tr
-                      className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 "
+                      className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
                       key={worker.id}
                     >
-                      <td className="px-3 py-2">{worker.id}</td>
-                      <td className="px-3 py-2">{worker.name}</td>
+                      <th className="px-3 py-2 text-white hover:underline">
+                        <p className="text-black hover:text-indigo-600">
+                          <Link href={route("worker.show", worker.id)}>
+                            {worker.name}
+                          </Link>
+                        </p>
+                      </th>
                       <td className="px-3 py-2">{worker.code}</td>
                       <td className="px-3 py-2 text-nowrap">
-                        <Link  href={route("worker.edit", worker.id)} 
-                        className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1" >
+                        <Link
+                          href={route("worker.edit", worker.id)}
+                          className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                        >
                           Modifica
                         </Link>
                         <button
-                            onClick={(e) => deleteWorker(worker)}
-                            className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
-                          >
-                            Elimina
-                          </button>
-                          <Link  href={route("worker.edit", worker.id)} 
-                        className="font-medium text-green-600 dark:text-green-500 hover:underline mx-1" >
+                          onClick={(e) => deleteWorker(worker)}
+                          className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                        >
+                          Elimina
+                        </button>
+                        <Link
+                          href={route("worker.edit", worker.id)}
+                          className="font-medium text-green-600 dark:text-green-500 hover:underline mx-1"
+                        >
                           Crea Task
                         </Link>
                       </td>

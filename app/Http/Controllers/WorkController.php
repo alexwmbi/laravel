@@ -70,11 +70,8 @@ class WorkController extends Controller
     public function show(Work $work)
     {
 
-
         $work = new WorkResource($work);
         $query = $work->tasks()->get();
-
-
 
         if (request("name")) {
 
@@ -83,12 +80,17 @@ class WorkController extends Controller
         }
 
         Session::put('work_id', $work->id);
+        $client = Session::get('client_name');
+        $client_id  = Session::get('client_id');
 
         return inertia('Work/Show', [
             "work" => $work,
             "tasks" => TaskResource::collection($query),
             "queryParams" => request()->query() ?: null,
             'success' => session('success'),
+            'client'  => $client,
+            'client_id'  => $client_id,
+            
 
         ]);
     }

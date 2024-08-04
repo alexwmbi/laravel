@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ClientResource;
+use App\Http\Resources\WorkerResource;
 use App\Models\Client;
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
@@ -58,6 +59,7 @@ class ClientController extends Controller
     public function show(Client $client)
     {
         Session::put('client_id', $client->id);
+        Session::put('client_name', $client->name);
 
         $client = new ClientResource($client);
         $query = $client->works()->get();
@@ -85,7 +87,7 @@ class ClientController extends Controller
         return inertia('Client/Show', [
 
             'client' => $client,
-            'works' => $query,
+            'works' => WorkerResource::collection($query),
             "queryParams" => request()->query() ?: null,
 
         ]);
