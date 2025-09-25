@@ -28,7 +28,9 @@ class StoreMaterialRequest extends FormRequest
             "name_prod" =>['string','max:255', 'nullable'],
             "desc" =>['string', 'nullable'],
             "um" =>['string','max:255', 'nullable'],
+            "quantity" =>  ['numeric', 'nullable'],	
             "priece" =>['string', 'nullable'],
+            "aug" =>  ['numeric', 'nullable'],	
             "iva" =>['string', 'nullable'],
 
         ];

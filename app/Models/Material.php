@@ -9,7 +9,7 @@ class Material extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['cod_art', 'cod_prod','name_prod','desc','um','priece','iva'];
+    protected $fillable = ['cod_art', 'cod_prod','name_prod','desc','um','quantity','priece','aug','iva'];
   
     public function tasks()
     {
@@ -19,6 +19,11 @@ class Material extends Model
     public function detailmaterials()
     {
         return $this->belongsToMany(DetailTaskMaterial::class);
+    }
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class);
     }
 
 

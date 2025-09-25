@@ -8,15 +8,15 @@ import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Edit({ auth, material }) {
   const { data, setData, put, errors, reset } = useForm({
-
-    cod_art: material.cod_art ||  "",
-    cod_prod: material.cod_prod ||  "",
-    name_prod: material.name_prod ||  "",
-    desc: material.desc ||  "",
-    um: material.um ||  "",
-    priece: material.priece ||  "",
-    iva: material.iva ||  "",
-
+    cod_art: material.cod_art || "",
+    cod_prod: material.cod_prod || "",
+    name_prod: material.name_prod || "",
+    desc: material.desc || "",
+    um: material.um || "",
+    quantity: material.quantity || "",
+    priece: material.priece || "",
+    aug: material.aug || "",
+    iva: material.iva || "",
   });
 
   const onSubmit = (e) => {
@@ -59,22 +59,6 @@ export default function Edit({ auth, material }) {
                 />
 
                 <InputError message={errors.cod_art} className="mt-2" />
-              </div>
-
-              <div className="mt-4">
-                <InputLabel htmlFor="material_contect" value="material Contact" />
-
-                <TextInput
-                  id="material_contact"
-                  type="text"
-                  name="contact"
-                  value={data.contact}
-                  className="mt-1 block w-full"
-                  isFocused={true}
-                  onChange={(e) => setData("contact", e.target.value)}
-                />
-
-                <InputError message={errors.contact} className="mt-2" />
               </div>
 
               <div className="mt-4">
@@ -124,6 +108,22 @@ export default function Edit({ auth, material }) {
               </div>
 
               <div className="mt-4">
+                <InputLabel htmlFor="quantity" value="quantita" />
+
+                <TextInput
+                  id="quantity"
+                  type="text"
+                  name="quantity"
+                  value={data.quantity}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("quantity", e.target.value)}
+                />
+
+                <InputError message={errors.quantity} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
                 <InputLabel htmlFor="um" value="Unita di misura" />
 
                 <TextInput
@@ -156,6 +156,22 @@ export default function Edit({ auth, material }) {
               </div>
 
               <div className="mt-4">
+                <InputLabel htmlFor="aug" value="Aumento" />
+
+                <TextInput
+                  id="aug"
+                  type="text"
+                  name="aug"
+                  value={data.aug}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("aug", e.target.value)}
+                />
+
+                <InputError message={errors.aug} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
                 <InputLabel htmlFor="iva" value="Iva" />
 
                 <TextInput
@@ -170,8 +186,6 @@ export default function Edit({ auth, material }) {
 
                 <InputError message={errors.iva} className="mt-2" />
               </div>
-
-
 
               <div className="mt-4 text-right">
                 <Link

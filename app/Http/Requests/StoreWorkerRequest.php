@@ -24,6 +24,7 @@ class StoreWorkerRequest extends FormRequest
         return [
             "name" => ['required','max:255'],
             "code" => ['nullable','max:255'],
+            
         ];
     }
 }

@@ -11,6 +11,11 @@ export default function Show({
   materialsdetails,
   hoursTot,
   materialsTot,
+  client_id,
+  client,
+  work_name,
+  work_id,
+  hoursCostTot,
   queryParams = null,
 }) {
   queryParams = queryParams || {};
@@ -20,7 +25,20 @@ export default function Show({
       user={auth.user}
       header={
         <h2 className="font-semibold text-xl text-blue-500 dark:text-gray-200 leading-tight">
-          {`Task > ${task.name}`}
+          <Link
+            href={route("client.show", client_id || task.client_id || 1)}
+            className=" py-1 px-3 text-blue-500 transition-all"
+          >
+            {client}
+          </Link>
+          <Link
+            href={route("work.show", work_id || task.work_id || 1)}
+            className=" py-1 px-3 text-blue-500 transition-all"
+          >
+            {`> ${work_name}`}
+          </Link>
+
+          {` > ${task.name}`}
         </h2>
       }
     >
@@ -32,6 +50,7 @@ export default function Show({
               <TaskTable
                 task={task}
                 hoursTot={hoursTot}
+                hoursCostTot={hoursCostTot}
                 materialsTot={materialsTot}
               />
             </div>

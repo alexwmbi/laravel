@@ -18,6 +18,8 @@ export default function MaterialsDetailsTable({ materialsdetails }) {
               <th className="px-3 py-2">DESCRIZIONE</th>
               <th className="px-3 py-2">CODICE ARTICOLO</th>
               <th className="px-3 py-2">PREZZO</th>
+              <th className="px-3 py-2">RICARICO STANDARD</th>
+              <th className="px-3 py-2">RICARICO PERSONALIZZATO</th>
               <th className="px-3 py-2">UM</th>
               <th className="px-3 py-2">QUANTITA</th>
               <th className="px-3 py-2">AZIONI</th>
@@ -33,6 +35,8 @@ export default function MaterialsDetailsTable({ materialsdetails }) {
                 <td className="px-3 py-2">{material.name}</td>
                 <td className="px-3 py-2">{material.code}</td>
                 <td className="px-3 py-2">{material.priece}</td>
+                <td className="px-3 py-2">{material.default_aug}</td>
+                <td className="px-3 py-2">{material.custom_aug}</td>
                 <td className="px-3 py-2">{material.um}</td>
                 <td className="px-3 py-2">{material.quantity}</td>
                 <td className="px-3 py-2 text-nowrap">

@@ -28,7 +28,9 @@ class UpdateMaterialRequest extends FormRequest
             "desc" =>['string', 'nullable'],
             "um" =>['string','max:255', 'nullable'],
             "priece" =>['string', 'nullable'],
+            "aug" =>  ['numeric', 'nullable'],	
             "iva" =>['string', 'nullable'],
+            "quantity" =>  ['numeric', 'nullable'],	
         ];
     }
 }

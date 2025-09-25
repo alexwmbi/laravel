@@ -5,19 +5,13 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import { useState } from "react";
 
 export default function Index({ auth, workers, taskid }) {
-
-    
   const [selectedItems, setSelectedItems] = useState([]);
 
-  function strcreate(selectedItems){
-    return (
-      selectedItems
-    );
+  function strcreate(selectedItems) {
+    return selectedItems;
   }
 
-    const { setData, post  } = useForm(strcreate()
-     
-    );
+  const { setData, post } = useForm(strcreate());
 
   function checkboxHandler(e) {
     let isSelected = e.target.checked;
@@ -34,9 +28,7 @@ export default function Index({ auth, workers, taskid }) {
     }
   }
 
-
   const onSubmit = (e) => {
-    
     e.preventDefault();
 
     post(route("detailwork.store"));
@@ -68,11 +60,12 @@ export default function Index({ auth, workers, taskid }) {
                       <th className="px-3 py-2">SELEZIONA</th>
                       <th className="px-3 py-2">NOME</th>
                       <th className="px-3 py-2">ORE</th>
+                      <th className="px-3 py-2">TARIFFA ORARIA</th>
+                      <th className="px-3 py-2">RINCARO TARIFFA</th>
                     </tr>
                   </thead>
                   <tbody>
                     {workers.data.map((worker, index) => (
-                      
                       <tr key={index}>
                         <td>
                           <Checkbox
@@ -86,17 +79,42 @@ export default function Index({ auth, workers, taskid }) {
                         </td>
                         <td>
                           <TextInput
-                            id={"hours"+worker.id}
+                            id={"hours" + worker.id}
                             type="text"
-                            name={"hours"+worker.id}
-                            
+                            name={"hours" + worker.id}
                             className="mt-1 block w-full"
                             isFocused={true}
-                            onChange={(e) => setData("hours"+worker.id, e.target.value)}
-
-                             
+                            onChange={(e) =>
+                              setData("hours" + worker.id, e.target.value)
+                            }
                           />
-                           {/* <pre>{JSON.stringify(data.hours[worker.id],undefined, 2)}</pre>  */}
+                          {/* <pre>{JSON.stringify(data.hours[worker.id],undefined, 2)}</pre>  */}
+                        </td>
+                        <td>
+                          <TextInput
+                            id={"priece" + worker.id}
+                            type="text"
+                            name={"priece" + worker.id}
+                            className="mt-1 block w-full"
+                            isFocused={true}
+                            onChange={(e) =>
+                              setData("priece" + worker.id, e.target.value)
+                            }
+                          />
+                          {/* <pre>{JSON.stringify(data.hours[worker.id],undefined, 2)}</pre>  */}
+                        </td>
+                        <td>
+                          <TextInput
+                            id={"aug" + worker.id}
+                            type="text"
+                            name={"aug" + worker.id}
+                            className="mt-1 block w-full"
+                            isFocused={true}
+                            onChange={(e) =>
+                              setData("aug" + worker.id, e.target.value)
+                            }
+                          />
+                          {/* <pre>{JSON.stringify(data.hours[worker.id],undefined, 2)}</pre>  */}
                         </td>
                       </tr>
                     ))}
@@ -104,16 +122,16 @@ export default function Index({ auth, workers, taskid }) {
                 </table>
 
                 <div className="mt-4 text-right">
-                <Link
-                  href={route("task.show",taskid)}
-                  className="bg-gray-100 py-1 px-3 text-gray-800 rounded shadow transition-all hover:bg-gray-200 mr-2"
-                >
-                  Annulla
-                </Link>
-                <button className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600">
-                  OK
-                </button>
-              </div>
+                  <Link
+                    href={route("task.show", taskid)}
+                    className="bg-gray-100 py-1 px-3 text-gray-800 rounded shadow transition-all hover:bg-gray-200 mr-2"
+                  >
+                    Annulla
+                  </Link>
+                  <button className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600">
+                    OK
+                  </button>
+                </div>
               </form>
             </div>
           </div>

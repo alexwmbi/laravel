@@ -15,13 +15,29 @@ class MaterialController extends Controller
     public function index()
     {
         $query = Material::query();
+        $sortField = request("sort_field", 'created_at');
+        $sortDirection = request("sort_direction", 'desc');
 
-        //Ricerca per nome
-        if(request("name")){
-            $query->where("name","like","%".request("name")."%");
+
+        //Ricerca 
+        if(request("cod_art")){
+            $query->where("cod_art","like","%".request("cod_art")."%");
         }
 
-        $materials = $query->get();
+        if(request("cod_prod")){
+            $query->where("cod_prod","like","%".request("cod_prod")."%");
+        }
+
+        if(request("name_prod")){
+            $query->where("name_prod","like","%".request("name_prod")."%");
+        }
+
+        if(request("desc")){
+            $query->where("desc","like","%".request("desc")."%");
+        }
+
+        //$materials = $query->get();
+        $materials = $query->orderBy($sortField, $sortDirection)->paginate(10);
 
         return inertia('Material/Index',[
     
@@ -47,7 +63,7 @@ class MaterialController extends Controller
     {
         $data = $request->validated();
         Material::create($data);
-       return to_route("material.index")->with('success','Nuovo articolo inserito');
+        return to_route("material.index")->with('success','Nuovo articolo inserito');
     }
 
     /**
@@ -84,4 +100,13 @@ class MaterialController extends Controller
         return to_route('material.index')
         ->with('success', "Articolo eliminato");
     }
+
+    public function import()
+    {
+       
+        return to_route('material.import');
+       
+    }
+
+    
 }

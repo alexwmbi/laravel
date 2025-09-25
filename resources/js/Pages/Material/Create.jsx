@@ -12,8 +12,10 @@ export default function Create({ auth }) {
     cod_prod: "",
     name_prod: "",
     desc: "",
+    quantity: "",
     um: "",
     priece: "",
+    aug: "",
     iva: "",
   });
 
@@ -107,6 +109,22 @@ export default function Create({ auth }) {
               </div>
 
               <div className="mt-4">
+                <InputLabel htmlFor="quantity" value="Quantita" />
+
+                <TextInput
+                  id="quantity"
+                  type="text"
+                  name="quantity"
+                  value={data.quantity}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("quantity", e.target.value)}
+                />
+
+                <InputError message={errors.um} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
                 <InputLabel htmlFor="um" value="Unita di Misura" />
 
                 <TextInput
@@ -139,6 +157,23 @@ export default function Create({ auth }) {
 
                 <InputError message={errors.priece} className="mt-2" />
               </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="aug" value="Aumento" />
+
+                <TextInput
+                  id="aug"
+                  type="text"
+                  name="aug"
+                  value={data.aug}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("aug", e.target.value)}
+                />
+
+                <InputError message={errors.aug} className="mt-2" />
+              </div>
+
 
               <div className="mt-4">
                 <InputLabel htmlFor="iva" value="Iva" />

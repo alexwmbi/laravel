@@ -22,8 +22,8 @@ class WorkResource extends JsonResource
             "name"=> $this->name,
             "status"=> $this->status,
             "note"=> $this->note,
-            "starting_date"=> $this->starting_date,
-            "due_date"=> $this->due_date,
+            "starting_date"=> (new Carbon ($this->starting_date))->format('d-m-Y') ,
+            "due_date"=> (new Carbon ($this->due_date))->format('d-m-Y') ,
             "created_at"=> (new Carbon ($this->created_at))->format('d-m-Y'),
             "client"=> new ClientResource( $this->client),           
 

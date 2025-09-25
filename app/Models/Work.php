@@ -21,5 +21,11 @@ class Work extends Model
         return $this->belongsToMany(Task::class);
     }
 
+    public function attaches()
+    {
+        return $this->hasMany(Attach::class);
+    }
+
+
 
 }

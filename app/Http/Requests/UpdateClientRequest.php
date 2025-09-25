@@ -23,6 +23,7 @@ class UpdateClientRequest extends FormRequest
     {
         return [
             "name" => ['required','max:255'],
+            "surname" => ['required','max:255'],
             "contact" => ['string','max:255', 'nullable'],
             "address" => ['string', 'nullable'],
             "piva" => ['string','max:255', 'nullable'],

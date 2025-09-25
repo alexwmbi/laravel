@@ -22,9 +22,15 @@ export default function AuthenticatedLayout({ user, header, children }) {
               </div> */}
 
               <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                <NavLink
+                {/* <NavLink
                   href={route("dashboard")}
                   active={route().current("dashboard")}
+                >
+                  Dashboard
+                </NavLink> */}
+                <NavLink
+                  href={route("dashboard.index")}
+                  active={route().current("dashboard.index")}
                 >
                   Dashboard
                 </NavLink>
@@ -33,6 +39,12 @@ export default function AuthenticatedLayout({ user, header, children }) {
                   active={route().current("client.index")}
                 >
                   Clienti
+                </NavLink>
+                <NavLink
+                  href={route("supplier.index")}
+                  active={route().current("supplier.index")}
+                >
+                  Fornitori
                 </NavLink>
                 <NavLink
                   href={route("worker.index")}
@@ -47,10 +59,16 @@ export default function AuthenticatedLayout({ user, header, children }) {
                   Catalogo
                 </NavLink>
                 <NavLink
-                  href={route("dashboard")}
-                  active={route().current("dashboard")}
+                  href={route("accounting.index")}
+                  active={route().current("accounting.index")}
                 >
                   Contabilita
+                </NavLink>
+                <NavLink
+                  href={route("call.index")}
+                  active={route().current("call.index")}
+                >
+                  Chiamata
                 </NavLink>
               </div>
             </div>
@@ -143,9 +161,15 @@ export default function AuthenticatedLayout({ user, header, children }) {
           }
         >
           <div className="pt-2 pb-3 space-y-1">
-            <ResponsiveNavLink
+           {/*  <ResponsiveNavLink
               href={route("dashboard")}
               active={route().current("dashboard")}
+            >
+              Dashboard
+            </ResponsiveNavLink> */}
+             <ResponsiveNavLink
+              href={route("dashboard.index")}
+              active={route().current("dashboard.index")}
             >
               Dashboard
             </ResponsiveNavLink>

@@ -28,6 +28,8 @@ class DetailworkResource extends JsonResource
             "code"=> $this->code,
             "worker_id"=> $this->worker_id,
             "hours"=> $this->hours,
+            "priece" => $this->priece,
+            "aug" => $this->aug,
             "client"=> $this->client,
             "work"=> $this->work,
             "task"=> $this->task,

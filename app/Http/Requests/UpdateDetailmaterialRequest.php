@@ -37,7 +37,9 @@ class UpdateDetailmaterialRequest extends FormRequest
             "note" =>  ['string','max:255', 'nullable'],
             "starting_date" =>  ['string','max:255', 'nullable'],
             "end_date" =>  ['string','max:255', 'nullable'],
-            "created_at" =>  ['string','max:255', 'nullable']
+            "created_at" =>  ['string','max:255', 'nullable'],
+            "default_aug" =>['string', 'nullable'],
+            "custom_aug" =>['string', 'nullable'],
             
         ];
             

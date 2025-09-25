@@ -1,8 +1,22 @@
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router } from "@inertiajs/react";
+import SelectInput from "@/Components/SelectInput";
+import {
+  ChevronUpIcon,
+  ChevronDownIcon,
+  PencilSquareIcon,
+  DocumentPlusIcon,
+  TrashIcon,
+} from "@heroicons/react/16/solid";
 
-export default function Index({ auth, workers, queryParams = null, success }) {
+export default function Index({
+  auth,
+  workers,
+  queryParams = null,
+  workerTask,
+  success,
+}) {
   queryParams = queryParams || {};
   const searchFieldChanged = (name, value) => {
     if (value) {
@@ -25,6 +39,16 @@ export default function Index({ auth, workers, queryParams = null, success }) {
       return;
     }
     router.delete(route("worker.destroy", worker.id));
+  };
+
+  const checkStatus = (workerTask, worker) => {
+    let status = 0;
+    workerTask.map((workerT) => workerT.worker_id == worker.id && status++);
+    return status;
+  };
+
+  const workerShow = (worker) => {
+    router.get(route("worker.show", worker.id), queryParams);
   };
 
   return (
@@ -59,6 +83,7 @@ export default function Index({ auth, workers, queryParams = null, success }) {
                   <tr className="text-nowrap">
                     <th className="px-3 py-2">NOME</th>
                     <th className="px-3 py-2">CODICE</th>
+                    <th className="px-3 py-2">STATO</th>
                     <th className="px-3 py-2">AZIONI</th>
                   </tr>
                 </thead>
@@ -75,6 +100,30 @@ export default function Index({ auth, workers, queryParams = null, success }) {
                         onKeyPress={(e) => onKeyPress("name", e)}
                       />
                     </th>
+                    <th className="px-3 py-2">
+                      <TextInput
+                        className="w-full"
+                        defaultValue={queryParams.code}
+                        placeholder="Codice"
+                        onBlur={(e) =>
+                          searchFieldChanged("code", e.target.value)
+                        }
+                        onKeyPress={(e) => onKeyPress("code", e)}
+                      />
+                    </th>
+                    <th className="px-3 py-2 ">
+                      <SelectInput
+                        className="w-full"
+                        defaultValue={queryParams.status}
+                        onChange={(e) =>
+                          searchFieldChanged("status", e.target.value)
+                        }
+                      >
+                        <option value="">Seleziona Stato</option>
+                        <option value="applied">Lavori Attivi</option>
+                        <option value="free">Libero</option>
+                      </SelectInput>
+                    </th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -84,32 +133,60 @@ export default function Index({ auth, workers, queryParams = null, success }) {
                       className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
                       key={worker.id}
                     >
-                      <th className="px-3 py-2 text-white hover:underline">
-                        <p className="text-black hover:text-indigo-600">
+                      <th className="px-3 py-2 text-gray-950">
+                        <div className="text-black hover:text-indigo-600">
                           <Link href={route("worker.show", worker.id)}>
                             {worker.name}
                           </Link>
-                        </p>
+                        </div>
                       </th>
-                      <td className="px-3 py-2">{worker.code}</td>
-                      <td className="px-3 py-2 text-nowrap">
+                      <td
+                        className="px-3 py-2"
+                        onClick={(e) => workerShow(worker)}
+                      >
+                        {worker.code}
+                      </td>
+
+                      {/* <pre>{JSON.stringify(workerTask,undefined, 2)}</pre> */}
+                      {/* <td className="px-3 py-2">{ workerTask.map((workerT) => ( workerT.worker_id == worker.id && workerT.task ))}</td> */}
+                      <td
+                        className="px-3 py-2"
+                        onClick={(e) => workerShow(worker)}
+                      >
+                        {(checkStatus(workerTask, worker) > 0 && (
+                          <span
+                            className={
+                              "m-1 px-2 py-1 rounded text-white bg-amber-300 "
+                            }
+                          >
+                            Lavori Attivi
+                          </span>
+                        )) || (
+                          <span
+                            className={
+                              "m-1 px-2 py-1 rounded text-white bg-emerald-300 "
+                            }
+                          >
+                            Libero
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-2 text-nowrap flex">
                         <Link
                           href={route("worker.edit", worker.id)}
-                          className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                          className="font-medium text-blue-600  mx-1"
                         >
-                          Modifica
+                          <PencilSquareIcon className="max-w-5 min-w-5 text-blue-500" />
                         </Link>
-                        <button
-                          onClick={(e) => deleteWorker(worker)}
-                          className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
-                        >
-                          Elimina
+                        <button onClick={(e) => deleteWorker(worker)}>
+                          <TrashIcon className="max-w-5 min-w-5 text-red-500" />
                         </button>
                         <Link
-                          href={route("worker.edit", worker.id)}
-                          className="font-medium text-green-600 dark:text-green-500 hover:underline mx-1"
+                          href={route("worker.clientfromworker", worker.id)}
+                          className="font-medium text-green-600 dark:text-green-500"
                         >
-                          Crea Task
+                          <DocumentPlusIcon className="max-w-5 min-w-5 ml-1 text-emerald-400" />
                         </Link>
                       </td>
                     </tr>

@@ -15,7 +15,7 @@ export default function Edit({ auth, task }) {
     due_date: task.due_date || "",
     note: task.note || "",
   });
- 
+
   const onSubmit = (e) => {
     e.preventDefault();
 
@@ -28,7 +28,7 @@ export default function Edit({ auth, task }) {
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Modifica Task "{task.name}"
+            Modifica Lavorazione "{task.name}"
           </h2>
         </div>
       }

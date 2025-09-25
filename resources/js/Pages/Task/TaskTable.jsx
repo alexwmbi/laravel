@@ -1,14 +1,15 @@
 import { Link } from "@inertiajs/react";
 
-export default function TaskTable({ task, hoursTot , materialsTot}) {
+export default function TaskTable({ task, hoursTot , hoursCostTot , materialsTot}) {
   return (
-    <>  
+    <>
       <dir className="overflow-auto">
         <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
           <thead className="text-xs text-gray-700 uppercase">
             <tr className="text-nowrap">
-              <th className="px-3 py-2">NOME TASK</th>
+              <th className="px-3 py-2">NOME LAVORAZIONE</th>
               <th className="px-3 py-2">TOTALE ORE</th>
+              <th className="px-3 py-2">TOTALE COSTO ORE</th>
               <th className="px-3 py-2">TOTALE MATERIALI</th>
               <th className="px-3 py-2">DESCRIZIONE</th>
               <th className="px-3 py-2">AZIONI</th>
@@ -21,6 +22,8 @@ export default function TaskTable({ task, hoursTot , materialsTot}) {
             >
               <td className="px-3 py-2">{task.name}</td>
               <td className="px-3 py-2">{hoursTot}</td>
+              <td className="px-3 py-2">{task.hourspriece}</td>
+              {/* <td className="px-3 py-2">{hoursCostTot}</td> */}
               <td className="px-3 py-2">{materialsTot}</td>
 
               <td className="px-3 py-2">{task.workers}</td>

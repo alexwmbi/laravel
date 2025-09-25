@@ -9,7 +9,7 @@ class Detailmaterial extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code' , 'material_id' , 'priece' ,'quantity','um' , 'aug', 'iva', 'tot' ,'client' , 'work' , 'task' , 'note' , 'status' ,'starting_date','end_date' ];
+    protected $fillable = ['name', 'code' , 'material_id' , 'priece' ,'quantity','um' , 'aug', 'iva', 'tot' ,'client' , 'work' , 'task' , 'note' , 'status' ,'starting_date','end_date','default_aug','custom_aug' ];
 
 
     public function tasks()

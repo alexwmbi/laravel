@@ -25,7 +25,8 @@ export default function Edit({ auth, workerdetail }) {
 
     name: workerdetail.name || "",
     hours: workerdetail.hours || "",
-    note: workerdetail.note || "",
+    priece: workerdetail.priece || "",
+    aug: workerdetail.aug || "",
   });
 
   const onSubmit = (e) => {
@@ -102,6 +103,38 @@ export default function Edit({ auth, workerdetail }) {
                 />
 
                 <InputError message={errors.hours} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="priece" value="Costo" />
+
+              <TextInput
+                  id="priece"
+                  type="text"
+                  name="priece"
+                  value={data.priece}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("priece", e.target.value)}
+                />
+
+                <InputError message={errors.priece} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="aug" value="Aumento" />
+
+              <TextInput
+                  id="aug"
+                  type="text"
+                  name="aug"
+                  value={data.aug}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("aug", e.target.value)}
+                />
+
+                <InputError message={errors.aug} className="mt-2" />
               </div>
 
               <div className="mt-4">

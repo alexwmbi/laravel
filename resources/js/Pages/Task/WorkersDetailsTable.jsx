@@ -8,7 +8,7 @@ export default function WorkersDetailsTable({ workers }) {
   };
 
   return (
-    <>
+    <> 
       {/* <pre>{JSON.stringify(workers,undefined, 2)}</pre>  */}
       <dir className="overflow-auto">
         <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
@@ -18,6 +18,8 @@ export default function WorkersDetailsTable({ workers }) {
               <th className="px-3 py-2">NOME</th>
               <th className="px-3 py-2">CODICE</th>
               <th className="px-3 py-2">ORE</th>
+              <th className="px-3 py-2">PREZZO ORARIO</th>
+              <th className="px-3 py-2">AUMENTO PREZZO</th>
               <th className="px-3 py-2">NOTE</th>
               <th className="px-3 py-2">AZIONI</th>
             </tr>
@@ -38,6 +40,8 @@ export default function WorkersDetailsTable({ workers }) {
                 </th>
                 <td className="px-3 py-2">{worker.code}</td>
                 <td className="px-3 py-2">{worker.hours}</td>
+                <td className="px-3 py-2">{worker.priece}</td>
+                <td className="px-3 py-2">{worker.aug}</td>
                 <td className="px-3 py-2">{worker.note}</td>
                 <td className="px-3 py-2 text-nowrap">
                   <Link

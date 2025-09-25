@@ -8,22 +8,14 @@ import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Edit({ auth, materialdetail }) {
   const { data, setData, put, errors, reset } = useForm({
-    /*   {material.cod_art}</h1>
-    </td>
-    <td>
-      <h1>{material.cod_prod}</h1>
-    </td>
-    <td>
-      <h1>{material.desc}</h1>
-    </td>
-    <td>
-      <h1>{material.um}</h1> */
 
     name: materialdetail.name || "",
     code: materialdetail.code || "",
     desc: materialdetail.desc || "",
     um: materialdetail.um || "",
     quantity: materialdetail.quantity || "",
+    default_aug: materialdetail.default_aug || "",
+    custom_aug: materialdetail.custom_aug || "",
   });
 
   const onSubmit = (e) => {
@@ -38,14 +30,12 @@ export default function Edit({ auth, materialdetail }) {
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Modifica Articolo del Task ""
+            Modifica Articolo della lavorazione ""
           </h2>
         </div>
       }
     >
       <Head title="Materiali" />
-
-      {/* <pre>{JSON.stringify(workerdetail,undefined, 2)}</pre>   */}
 
       <div className="py-12">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
@@ -136,6 +126,38 @@ export default function Edit({ auth, materialdetail }) {
                 />
 
                 <InputError message={errors.quantity} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="default_aug" value="Rincaro Standard" />
+
+                <TextInput
+                  id="default_aug"
+                  type="text"
+                  name="default_aug"
+                  value={data.default_aug}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("default_aug", e.target.value)}
+                />
+
+                <InputError message={errors.default_aug} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="custom_aug" value="Rincaro Personalizzato" />
+
+                <TextInput
+                  id="descustom_augc"
+                  type="text"
+                  name="custom_aug"
+                  value={data.custom_aug}
+                  className="mt-1 block w-full"
+                  isFocused={true}
+                  onChange={(e) => setData("custom_aug", e.target.value)}
+                />
+
+                <InputError message={errors.custom_aug} className="mt-2" />
               </div>
 
               <div className="mt-4 text-right">

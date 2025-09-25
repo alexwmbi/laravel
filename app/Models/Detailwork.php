@@ -9,7 +9,7 @@ class Detailwork extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code' , 'worker_id' , 'hours' , 'client' , 'work' , 'task' , 'note' , 'status' ,'starting_date','end_date'];
+    protected $fillable = ['name', 'code' , 'worker_id' , 'hours' , 'priece' , 'aug' , 'client' , 'work' , 'task' , 'note' , 'status' ,'starting_date','end_date'];
 
 
     public function tasks()

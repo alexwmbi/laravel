@@ -26,6 +26,8 @@ class UpdateDetailworkRequest extends FormRequest
             "code" => ['string','max:255', 'nullable'],
             "worker_id" => ['string', 'nullable'],
             "hours" => ['numeric', 'nullable'],
+            "priece" => ['numeric', 'nullable'],
+            "aug" => ['numeric', 'nullable'],
             "client" => ['string', 'nullable'],
             "work" => ['string', 'nullable'],
             "task" => ['string', 'nullable'],
