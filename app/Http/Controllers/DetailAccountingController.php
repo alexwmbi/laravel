@@ -60,7 +60,7 @@ class DetailAccountingController extends Controller
      */
     public function update(UpdateDetailAccountingRequest $request, DetailAccounting $detailAccounting)
     {
-     // dd($request); 
+     // dd($request);
        // $detailAccounting->update($request->validated());
        // return to_route('accounting.index')->with('success', 'Fattura modificata');
        try {
@@ -98,14 +98,19 @@ class DetailAccountingController extends Controller
         // Errore
         return redirect()->route('accounting.index')->with('error', 'Errore durante la modifica della fattura');
     }
-   
+
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(DetailAccounting $detailAccounting)
+      public function destroy(DetailAccounting $detailaccounting)
     {
-        //
+        $deleted = $detailaccounting->delete();
+
+        return back()->with(
+            'success',
+            $deleted ? 'Riga pagamento eliminata' : 'Nessuna riga eliminata'
+        );
     }
 }

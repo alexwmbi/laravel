@@ -6,6 +6,7 @@ use App\Http\Resources\AccountingResource;
 use App\Models\Accounting;
 use App\Http\Requests\StoreAccountingRequest;
 use App\Http\Requests\UpdateAccountingRequest;
+use App\Http\Resources\DetailAccountingResource;
 use App\Models\DetailAccounting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -146,10 +147,22 @@ class AccountingController extends Controller
         return inertia("Accounting/Import");
     }
 
-    public function edit(Accounting $accounting)
+     public function edit(Accounting $accounting)
     {
-        return inertia("Accounting/Edit", ['accounting' => new AccountingResource($accounting)]);
+        // assicuriamoci di avere le relazioni necessarie
+        $accounting->load(['detailAccounting']);
+
+        return inertia('Accounting/Edit', [
+            // Se usi Jetstream/Breeze di solito 'auth' arriva da middleware Inertia; se già c'è, puoi toglierlo
+            'accounting' => new AccountingResource($accounting),
+            'detailAccountings' => DetailAccountingResource::collection(
+                $accounting->detailAccounting()->orderBy('id')->get()
+            ),
+            // opzionale: eventuale flash o altro
+            'success' => session('success'),
+        ]);
     }
+
 
     public function editprog(Accounting $accounting)
     {

@@ -39,6 +39,14 @@ export default function Index({ auth, accountings, queryParams = null, success }
     router.delete(route("accounting.destroy", a.id));
   };
 
+  // ⬇️ NUOVO: elimina una riga pagamento
+  const deleteDetail = (detail) => {
+    if (!window.confirm("Vuoi eliminare la riga pagamento?")) return;
+    router.delete(route("detailaccounting.destroy", detail.id), {
+      preserveScroll: true,
+    });
+  };
+
   const addDetailRow = (accountingId) => {
     router.post(route("accounting.details.store", accountingId), {
       stato: "aperta",
@@ -107,9 +115,8 @@ export default function Index({ auth, accountings, queryParams = null, success }
                 </colgroup>
 
                 <thead>
-                 {/* Riga intestazioni */}
+                  {/* Riga intestazioni */}
                   <tr className="text-xs uppercase text-gray-700 bg-transparent">
-
                     {headCell("PROGRESSIVO", "Progressivo")}
                     {headCell("PROGRESSIVO INVIO", "ProgressivoInvio")}
                     {headCell("FORNITORE", "FornitoreNome")}
@@ -263,7 +270,6 @@ export default function Index({ auth, accountings, queryParams = null, success }
                               </button>
                             </div>
 
-
                             <table className="w-full table-fixed text-center text-sm text-gray-600 dark:text-gray-300 border mt-2 rounded-md overflow-hidden">
                               <colgroup>
                                 <col className="w-[12ch]" />
@@ -299,9 +305,24 @@ export default function Index({ auth, accountings, queryParams = null, success }
                                     <td className="px-3 py-2">{d.importoPagamento || ""}</td>
                                     <td className="px-3 py-2">{d.note || ""}</td>
                                     <td className="px-3 py-2">
-                                      <Link href={route("detailaccounting.edit", d.id)} className="text-blue-600">
-                                        <PencilSquareIcon className="w-5 h-5" />
-                                      </Link>
+                                      <div className="flex items-center justify-center gap-2">
+                                        <Link
+                                          href={route("detailaccounting.edit", d.id)}
+                                          className="text-blue-600 hover:text-blue-800"
+                                          title="Modifica riga"
+                                        >
+                                          <PencilSquareIcon className="w-5 h-5" />
+                                        </Link>
+                                        {/* ⬇️ NUOVO: cestino rosso per cancellare la riga */}
+                                        <button
+                                          onClick={() => deleteDetail(d)}
+                                          className="text-red-500 hover:text-red-700"
+                                          title="Elimina riga"
+                                          aria-label="Elimina riga"
+                                        >
+                                          <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
