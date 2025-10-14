@@ -6,40 +6,53 @@ use App\Http\Resources\AccountingResource;
 use App\Models\Accounting;
 use App\Http\Requests\StoreAccountingRequest;
 use App\Http\Requests\UpdateAccountingRequest;
-use App\Http\Resources\DetailAccountingResource;
 use App\Models\DetailAccounting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
 
 class AccountingController extends Controller
 {
-   public function index()
-{
-    $query = Accounting::query()
-        ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+    public function index()
+    {
+        $query = Accounting::query()
+            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
-    // Filtri
-    if ($v = request('stato'))            $query->where('Stato', $v);
-    if ($v = request('progressivo'))      { request()->query->remove('page'); $query->where('Progressivo','like',"%$v%"); }
-    if ($v = request('progressivoinvio')) { request()->query->remove('page'); $query->where('ProgressivoInvio','like',"%$v%"); }
-    if ($v = request('name') ?? request('nome')) { request()->query->remove('page'); $query->where('FornitoreNome','like',"%$v%"); }
-    if ($v = request('numero'))           { request()->query->remove('page'); $query->where('Numero','like',"%$v%"); }
-    if ($v = request('date_from'))        $query->whereDate('Data','>=',$v);
-    if ($v = request('date_to'))          $query->whereDate('Data','<=',$v);
+        // Filtri
+        if ($v = request('stato'))            $query->where('Stato', $v);
+        if ($v = request('progressivo')) {
+            request()->query->remove('page');
+            $query->where('Progressivo', 'like', "%$v%");
+        }
+        if ($v = request('progressivoinvio')) {
+            request()->query->remove('page');
+            $query->where('ProgressivoInvio', 'like', "%$v%");
+        }
+        if ($v = request('name') ?? request('nome')) {
+            request()->query->remove('page');
+            $query->where('FornitoreNome', 'like', "%$v%");
+        }
+        if ($v = request('numero')) {
+            request()->query->remove('page');
+            $query->where('Numero', 'like', "%$v%");
+        }
+        if ($v = request('date_from'))        $query->whereDate('Data', '>=', $v);
+        if ($v = request('date_to'))          $query->whereDate('Data', '<=', $v);
 
-    // Ordinamento (come Clients)
-    $sortField     = request('sort_field', 'Progressivo');
-    $sortDirection = request('sort_direction', 'desc');
-    $query->orderBy($sortField, $sortDirection);
+        // Ordinamento (come Clients)
+        $sortField     = request('sort_field', 'Progressivo');
+        $sortDirection = request('sort_direction', 'desc');
+        $query->orderBy($sortField, $sortDirection);
 
-    $accountings = $query->paginate(10);
+        $accountings = $query->paginate(10);
 
-    return inertia('Accounting/Index', [
-        'accountings' => AccountingResource::collection($accountings),
-        'queryParams' => request()->query() ?: null,
-        'success'     => session('success'),
-    ]);
-}
+        return inertia('Accounting/Index', [
+            'accountings' => AccountingResource::collection($accountings),
+            'queryParams' => request()->query() ?: null,
+            'success'     => session('success'),
+        ]);
+    }
 
     public function create()
     {
@@ -48,16 +61,16 @@ class AccountingController extends Controller
 
     public function store(StoreAccountingRequest $request)
     {
-        \Log::info('🚨 Entra nel metodo store');
+        Log::info('🚨 Entra nel metodo store');
 
         $files = $request->file('xml_data') ?? [];
-        \Log::info("🧪 File ricevuti: " . count($files));
+        Log::info("🧪 File ricevuti: " . count($files));
         $importSuccess = 0;
         $importErrors = [];
 
         foreach ($files as $file) {
             $fileName = $file->getClientOriginalName();
-            \Log::info("🔁 Inizio elaborazione file: $fileName");
+            Log::info("🔁 Inizio elaborazione file: $fileName");
 
             try {
                 $xmlString = file_get_contents($file);
@@ -93,7 +106,7 @@ class AccountingController extends Controller
                     'Numero'                   => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["Numero"] ?? null,
                     'Data'                     => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["Data"] ?? null,
                     'ImportoTotaleDocumento'   => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["ImportoTotaleDocumento"] ?? null,
-                    'Stato'                    => 'aperta', // coerente con enum/logica UI
+                    'Stato'                    => 'aperta',
                 ];
 
                 // logging campi vuoti (facoltativo)
@@ -104,7 +117,7 @@ class AccountingController extends Controller
                     }
                 }
                 if (!empty($campiVuoti)) {
-                    \Log::warning("⚠️ [$fileName] Campi mancanti/empty: ".implode(', ', $campiVuoti));
+                    Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
                 }
 
                 if (empty($Accounting_array['ProgressivoInvio'])) {
@@ -120,15 +133,15 @@ class AccountingController extends Controller
                         'dataScadenzaPagamento' => $pagamento["DataScadenzaPagamento"] ?? null,
                         'importoPagamento'      => $pagamento["ImportoPagamento"] ?? null,
                         'stato'                 => 'aperta',
-                        'tipoPagamento'         => null, // nuovo campo, lasciato nullo all'import
+                        'tipoPagamento'         => null,
                         'note'                  => null,
                     ]);
                 }
 
-                \Log::info("✅ [$fileName] Importazione riuscita.");
+                Log::info("✅ [$fileName] Importazione riuscita.");
                 $importSuccess++;
             } catch (\Throwable $e) {
-                \Log::error("❌ [$fileName] Errore: " . $e->getMessage());
+                Log::error("❌ [$fileName] Errore: " . $e->getMessage());
                 $importErrors[] = [
                     'file' => $fileName,
                     'error' => $e->getMessage()
@@ -147,22 +160,28 @@ class AccountingController extends Controller
         return inertia("Accounting/Import");
     }
 
-     public function edit(Accounting $accounting)
+    public function edit(Accounting $accounting)
     {
-        // assicuriamoci di avere le relazioni necessarie
-        $accounting->load(['detailAccounting']);
+        // carica le righe pagamento ordinate
+        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Edit', [
-            // Se usi Jetstream/Breeze di solito 'auth' arriva da middleware Inertia; se già c'è, puoi toglierlo
             'accounting' => new AccountingResource($accounting),
-            'detailAccountings' => DetailAccountingResource::collection(
-                $accounting->detailAccounting()->orderBy('id')->get()
-            ),
-            // opzionale: eventuale flash o altro
-            'success' => session('success'),
+            // passo le righe come array piatto per semplicità lato JSX
+            'detailAccountings' => $accounting->detailAccounting->map(function ($d) {
+                return [
+                    'id' => $d->id,
+                    'accountingId' => $d->accountingId,
+                    'stato' => $d->stato,
+                    'modalitaPagamento' => $d->modalitaPagamento,
+                    'tipoPagamento' => $d->tipoPagamento,
+                    'dataScadenzaPagamento' => $d->dataScadenzaPagamento,
+                    'importoPagamento' => $d->importoPagamento,
+                    'note' => $d->note,
+                ];
+            }),
         ]);
     }
-
 
     public function editprog(Accounting $accounting)
     {
@@ -173,17 +192,7 @@ class AccountingController extends Controller
     {
         $validated = $request->validated();
 
-        $query = "
-            UPDATE accountings
-            SET
-                Progressivo = ?
-            WHERE id = ?
-        ";
-
-        DB::statement($query, [
-            $validated['Progressivo'],
-            $request->id,
-        ]);
+        $accounting->update($validated);
 
         return redirect()->route('accounting.index')->with('success', 'Progressivo modificato');
     }
@@ -203,54 +212,76 @@ class AccountingController extends Controller
     public function patchField(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
-            'Progressivo'              => ['sometimes','nullable','string'],
-            'ProgressivoInvio'         => ['sometimes','nullable','string'],
-            'FornitoreNome'            => ['sometimes','nullable','string'],
-            'Numero'                   => ['sometimes','nullable','string'],
-            'Data'                     => ['sometimes','nullable','date'],
-            'ImportoTotaleDocumento'   => ['sometimes','nullable','numeric'],
-            'Stato'                    => ['sometimes','required','in:aperta,pagata,parziale'],
+            'Progressivo'              => ['sometimes', 'nullable', 'string'],
+            'ProgressivoInvio'         => ['sometimes', 'nullable', 'string'],
+            'FornitoreNome'            => ['sometimes', 'nullable', 'string'],
+            'Numero'                   => ['sometimes', 'nullable', 'string'],
+            'Data'                     => ['sometimes', 'nullable', 'date'],
+            'ImportoTotaleDocumento'   => ['sometimes', 'nullable', 'numeric'],
+            'Stato'                    => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
         ]);
 
         $accounting->update($data);
-        return back()->with('success','Fattura aggiornata');
+        return back()->with('success', 'Fattura aggiornata');
     }
 
     // === 3.3 – CRUD delle righe pagamento
     public function storeDetail(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
-            'stato'                 => ['required','in:aperta,pagata,parziale'],
-            'modalitaPagamento'     => ['nullable','string','max:100'],
-            'tipoPagamento'         => ['nullable','in:bonifico,riba,contanti,assegno'],
-            'dataScadenzaPagamento' => ['nullable','date'],
-            'importoPagamento'      => ['nullable','numeric'],
-            'note'                  => ['nullable','string','max:500'],
+            'stato'                 => ['required', 'in:aperta,pagata,parziale'],
+            'modalitaPagamento'     => ['nullable', 'string', 'max:100'],
+            'tipoPagamento'         => ['nullable', 'in:bonifico,riba,contanti,assegno'],
+            'dataScadenzaPagamento' => ['nullable', 'date'],
+            'importoPagamento'      => ['nullable', 'numeric'],
+            'note'                  => ['nullable', 'string', 'max:500'],
         ]);
         $data['accountingId'] = $accounting->id;
 
         DetailAccounting::create($data);
-        return back()->with('success','Riga pagamento aggiunta');
+        return back()->with('success', 'Riga pagamento aggiunta');
     }
 
     public function updateDetail(Request $request, DetailAccounting $detail)
     {
         $data = $request->validate([
-            'stato'                 => ['sometimes','required','in:aperta,pagata,parziale'],
-            'modalitaPagamento'     => ['sometimes','nullable','string','max:100'],
-            'tipoPagamento'         => ['sometimes','nullable','in:bonifico,riba,contanti,assegno'],
-            'dataScadenzaPagamento' => ['sometimes','nullable','date'],
-            'importoPagamento'      => ['sometimes','nullable','numeric'],
-            'note'                  => ['sometimes','nullable','string','max:500'],
+            'stato'                 => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
+            'modalitaPagamento'     => ['sometimes', 'nullable', 'string', 'max:100'],
+            'tipoPagamento'         => ['sometimes', 'nullable', 'in:bonifico,riba,contanti,assegno'],
+            'dataScadenzaPagamento' => ['sometimes', 'nullable', 'date'],
+            'importoPagamento'      => ['sometimes', 'nullable', 'numeric'],
+            'note'                  => ['sometimes', 'nullable', 'string', 'max:500'],
         ]);
 
         $detail->update($data);
-        return back()->with('success','Riga pagamento aggiornata');
+        return back()->with('success', 'Riga pagamento aggiornata');
     }
 
     public function destroyDetail(DetailAccounting $detail)
     {
         $detail->delete();
-        return back()->with('success','Riga pagamento eliminata');
+        return back()->with('success', 'Riga pagamento eliminata');
+    }
+
+    // === Nuovo: pagina di edit della singola riga pagamento
+    public function editDetail(DetailAccounting $detail)
+    {
+        // opzionale: se esiste la relazione "accounting", la carico per eventuali usi
+        $detail->loadMissing('accounting');
+
+        return inertia('DetailAccounting/Edit', [
+            'detailAccounting' => [
+                'id' => $detail->id,
+                'accountingId' => $detail->accountingId,
+                'stato' => $detail->stato,
+                'modalitaPagamento' => $detail->modalitaPagamento,
+                'tipoPagamento' => $detail->tipoPagamento,
+                'dataScadenzaPagamento' => $detail->dataScadenzaPagamento,
+                'importoPagamento' => $detail->importoPagamento,
+                'note' => $detail->note,
+            ],
+            'statusOptions' => ['aperta','pagata','parziale'],
+            'success' => session('success'),
+        ]);
     }
 }

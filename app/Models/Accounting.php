@@ -12,6 +12,7 @@ class Accounting extends Model
 
     //fornitore data numero totale e scadenze
     protected $fillable = [
+        'Progressivo',
         'ProgressivoInvio',
         'FormatoTrasmissione',
         'FornitoreIdPaese',

@@ -39,7 +39,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('detailmaterial', DetailmaterialController::class);
     Route::resource('supplier', SupplierController::class);
     Route::resource('accounting', AccountingController::class);
-    Route::resource('detailaccounting', DetailAccountingController::class);
+    Route::resource('detailaccounting', DetailAccountingController::class)->except(['edit','update']);
+
+    Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
+    ->whereNumber('detail')
+    ->name('detailaccounting.edit');
+
+Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
+    ->whereNumber('detail')
+    ->name('detailaccounting.update');
+
+
+
     Route::resource('call', CallController::class);
 
     // Extra client

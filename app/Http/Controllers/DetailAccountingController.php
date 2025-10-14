@@ -45,61 +45,52 @@ class DetailAccountingController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(DetailAccounting $detailAccounting)
-    {
-        // dd($detailAccounting);
-        //dd(request()->route('detailaccounting'));
-
-        $detailAccounting = DetailAccounting::where('id', request()->route('detailaccounting'))->first();
-        //dd( $detailAccounting);
-        return inertia("Accounting/Edit", ['detailaccounting' => new DetailAccountingResource($detailAccounting)]);
+  public function edit(\App\Models\DetailAccounting $detailAccounting)
+{
+    // Proviamo a ricavare le opzioni dello Stato dall'enum se esiste; altrimenti fallback sicuro
+    $statusOptions = [];
+    // 1) enum di progetto (se esiste)
+    if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
+        $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
+    }
+    // 2) fallback pulito (non rompe se non c'è l'enum)
+    if (!$statusOptions) {
+        $statusOptions = ['APERTA', 'PAGATA', 'SCADUTA']; // aggiorna qui se serve
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateDetailAccountingRequest $request, DetailAccounting $detailAccounting)
-    {
-     // dd($request);
-       // $detailAccounting->update($request->validated());
-       // return to_route('accounting.index')->with('success', 'Fattura modificata');
-       try {
-        // Estrai i dati validati
-        $validated = $request->validated();
+    return inertia('DetailAccounting/Edit', [
+        'detailAccounting' => $detailAccounting,
+        'statusOptions'    => $statusOptions,
+        'success'          => session('success'),
+    ]);
+}
 
-        // Prepara la query SQL di aggiornamento
-        $query = "
-            UPDATE detail_accountings
-            SET
-                stato = ?,
-                modalitaPagamento = ?,
-                dataScadenzaPagamento = ?,
-                importoPagamento = ?,
-                note = ?
-            WHERE id = ?
-        ";
-
-        // Esegui la query con i dati validati
-        DB::statement($query, [
-            $validated['stato'],
-            $validated['modalitaPagamento'],
-            $validated['dataScadenzaPagamento'],
-            $validated['importoPagamento'],
-            $validated['note'],
-            $request->id, // ID del record da aggiornare
-        ]);
-
-        // Successo
-        return redirect()->route('accounting.index')->with('success', 'Fattura modificata');
-    } catch (\Exception $e) {
-        // Logga l'errore
-        Log::error('Errore durante l\'aggiornamento:', ['error' => $e->getMessage()]);
-
-        // Errore
-        return redirect()->route('accounting.index')->with('error', 'Errore durante la modifica della fattura');
+public function update(\App\Models\DetailAccounting $detailAccounting)
+{
+    // stesse options della edit per validare coerentemente
+    $statusOptions = [];
+    if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
+        $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
+    }
+    if (!$statusOptions) {
+        $statusOptions = ['APERTA', 'PAGATA', 'SCADUTA'];
     }
 
-    }
+    $data = request()->validate([
+        'Stato'             => ['nullable', 'in:'.implode(',', $statusOptions)],
+        'ModalitaPagamento' => ['nullable', 'string', 'max:100'],
+        'TipoPagamento'     => ['nullable', 'string', 'max:100'],
+        'DataScadenza'      => ['nullable', 'date'],
+        'Importo'           => ['nullable'], // aggiungi 'numeric' se il campo è DECIMAL
+        'Note'              => ['nullable', 'string', 'max:255'],
+    ]);
+
+    $detailAccounting->update($data);
+
+    return back()->with('success', 'Riga aggiornata correttamente');
+}
+
+
 
     /**
      * Remove the specified resource from storage.
