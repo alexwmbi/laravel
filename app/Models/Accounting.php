@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -60,6 +61,10 @@ class Accounting extends Model
         'DataScadenzaPagamento2',
         'ImportoPagamento2',
         'Stato',
+    ];
+
+       protected $casts = [
+        'Stato' => AccountingStatus::class,
     ];
 
 
