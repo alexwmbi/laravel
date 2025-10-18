@@ -4,98 +4,78 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\DetailAccountingResource;
 use App\Models\DetailAccounting;
-use App\Http\Requests\StoreDetailAccountingRequest;
-use App\Http\Requests\UpdateDetailAccountingRequest;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use App\Enums\PaymentType;
+use Illuminate\Validation\Rules\Enum as EnumRule;
+
 class DetailAccountingController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function edit(DetailAccounting $detailAccounting)
     {
-        //
+        // Opzioni STATO (come avevi già fatto)
+        $statusOptions = [];
+        if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
+            $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
+        }
+        if (!$statusOptions) {
+            $statusOptions = ['aperta', 'pagata', 'parziale']; // minuscolo per coerenza col resto dell’app
+        }
+
+        // Opzioni TIPO PAGAMENTO dall'enum
+        $paymentTypeOptions = array_map(
+            fn(PaymentType $c) => ['value' => $c->value, 'label' => $c->label()],
+            PaymentType::cases()
+        );
+
+        // Se hai messo il cast enum, per la form vogliamo una stringa
+        $payload = [
+            'id'                    => $detailAccounting->id,
+            'accountingId'          => $detailAccounting->accountingId,
+            'stato'                 => $detailAccounting->stato,
+            'modalitaPagamento'     => $detailAccounting->modalitaPagamento,
+            'tipoPagamento'         => ($detailAccounting->tipoPagamento instanceof PaymentType)
+                ? $detailAccounting->tipoPagamento->value
+                : $detailAccounting->tipoPagamento,
+            'dataScadenzaPagamento' => $detailAccounting->dataScadenzaPagamento,
+            'importoPagamento'      => $detailAccounting->importoPagamento,
+            'note'                  => $detailAccounting->note,
+        ];
+
+        return inertia('DetailAccounting/Edit', [
+            'detailAccounting'   => $payload,
+            'statusOptions'      => $statusOptions,
+            'paymentTypeOptions' => $paymentTypeOptions,
+            'success'            => session('success'),
+            'backQuery' => request()->query() ?: null,
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function update(DetailAccounting $detailAccounting)
     {
-        //
+        // Stesse options della edit per coerenza validazione
+        $statusOptions = [];
+        if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
+            $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
+        }
+        if (!$statusOptions) {
+            $statusOptions = ['aperta', 'pagata', 'parziale'];
+        }
+
+        $data = request()->validate([
+            'stato'                 => ['sometimes', 'required', 'in:' . implode(',', $statusOptions)],
+            'modalitaPagamento'     => ['sometimes', 'nullable', 'string', 'max:100'],
+            // ⬇️ Enum PaymentType qui
+            'tipoPagamento'         => ['sometimes', 'nullable', new EnumRule(PaymentType::class)],
+            'dataScadenzaPagamento' => ['sometimes', 'nullable', 'date'],
+            'importoPagamento'      => ['sometimes', 'nullable', 'numeric'],
+            'note'                  => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
+        $detailAccounting->update($data);
+
+        return back()->with('success', 'Riga pagamento aggiornata');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreDetailAccountingRequest $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(DetailAccounting $detailAccounting)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-  public function edit(\App\Models\DetailAccounting $detailAccounting)
-{
-    // Proviamo a ricavare le opzioni dello Stato dall'enum se esiste; altrimenti fallback sicuro
-    $statusOptions = [];
-    // 1) enum di progetto (se esiste)
-    if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
-        $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
-    }
-    // 2) fallback pulito (non rompe se non c'è l'enum)
-    if (!$statusOptions) {
-        $statusOptions = ['APERTA', 'PAGATA', 'SCADUTA']; // aggiorna qui se serve
-    }
-
-    return inertia('DetailAccounting/Edit', [
-        'detailAccounting' => $detailAccounting,
-        'statusOptions'    => $statusOptions,
-        'success'          => session('success'),
-    ]);
-}
-
-public function update(\App\Models\DetailAccounting $detailAccounting)
-{
-    // stesse options della edit per validare coerentemente
-    $statusOptions = [];
-    if (class_exists(\App\Enums\DetailAccountingStatus::class)) {
-        $statusOptions = array_map(fn($c) => $c->value, \App\Enums\DetailAccountingStatus::cases());
-    }
-    if (!$statusOptions) {
-        $statusOptions = ['APERTA', 'PAGATA', 'SCADUTA'];
-    }
-
-    $data = request()->validate([
-        'Stato'             => ['nullable', 'in:'.implode(',', $statusOptions)],
-        'ModalitaPagamento' => ['nullable', 'string', 'max:100'],
-        'TipoPagamento'     => ['nullable', 'string', 'max:100'],
-        'DataScadenza'      => ['nullable', 'date'],
-        'Importo'           => ['nullable'], // aggiungi 'numeric' se il campo è DECIMAL
-        'Note'              => ['nullable', 'string', 'max:255'],
-    ]);
-
-    $detailAccounting->update($data);
-
-    return back()->with('success', 'Riga aggiornata correttamente');
-}
-
-
-
-    /**
-     * Remove the specified resource from storage.
-     */
-      public function destroy(DetailAccounting $detailaccounting)
+    public function destroy(DetailAccounting $detailaccounting)
     {
         $deleted = $detailaccounting->delete();
 

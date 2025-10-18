@@ -41,13 +41,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('accounting', AccountingController::class);
     Route::resource('detailaccounting', DetailAccountingController::class)->except(['edit','update']);
 
-    Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
-    ->whereNumber('detail')
-    ->name('detailaccounting.edit');
+    // Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
+    // ->whereNumber('detail')
+    // ->name('detailaccounting.edit');
+     Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
+    ->whereNumber('detailaccounting')
+      ->name('detailaccounting.edit');
+
+// Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
+//     ->whereNumber('detail')
+//     ->name('detailaccounting.update');
 
 Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
-    ->whereNumber('detail')
-    ->name('detailaccounting.update');
+    ->whereNumber('detailaccounting')
+      ->name('detailaccounting.update');
 
 
 

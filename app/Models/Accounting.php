@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
-use App\Enums\AccountingStatus;
+use App\Casts\AccountingStatusCast;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Accounting extends Model
 {
-
     use HasFactory;
 
-    //fornitore data numero totale e scadenze
+    /**
+     * Attributi assegnabili in massa.
+     */
     protected $fillable = [
         'Progressivo',
         'ProgressivoInvio',
@@ -63,16 +64,20 @@ class Accounting extends Model
         'Stato',
     ];
 
-       protected $casts = [
-        'Stato' => AccountingStatus::class,
+    /**
+     * Cast degli attributi.
+     * Usa un cast personalizzato che normalizza maiuscole/minuscole
+     * in lettura/scrittura per il campo "Stato".
+     */
+    protected $casts = [
+        'Stato' => AccountingStatusCast::class,
     ];
 
-
-   public function detailAccounting(){
-
-
-    return $this->hasMany(DetailAccounting::class, 'accountingId');
-
+    /**
+     * Relazione: una fattura ha molte righe di pagamento.
+     */
+    public function detailAccounting()
+    {
+        return $this->hasMany(DetailAccounting::class, 'accountingId');
     }
-
 }

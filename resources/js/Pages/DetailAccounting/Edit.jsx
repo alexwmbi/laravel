@@ -1,6 +1,6 @@
 import React from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, Link, useForm, router } from "@inertiajs/react";
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
 import { ArrowUturnLeftIcon, PencilSquareIcon } from "@heroicons/react/16/solid";
@@ -11,8 +11,25 @@ const toDateInput = (v) => {
   return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
 };
 
-export default function Edit({ auth, detailAccounting, statusOptions = [], success }) {
+export default function Edit({
+  auth,
+  detailAccounting,
+  statusOptions = [],
+  paymentTypeOptions = [], // { value, label }
+  backQuery = {},          // ⬅️ arriva dal controller: request()->query()
+  success,
+}) {
   const d = detailAccounting?.data ?? detailAccounting ?? {};
+
+  // fallback locale nel caso non arrivino dal backend
+  const paymentOpts = paymentTypeOptions?.length
+    ? paymentTypeOptions
+    : [
+        { value: "bonifico", label: "Bonifico" },
+        { value: "riba", label: "Ri.Ba." },
+        { value: "contanti", label: "Contanti" },
+        { value: "assegno", label: "Assegno" },
+      ];
 
   const { data, setData, put, processing, errors } = useForm({
     stato: d.stato ?? "",
@@ -23,10 +40,15 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
     note: d.note ?? "",
   });
 
+  const goBackToList = () => router.get(route("accounting.index", backQuery || {}));
+
   const onSubmit = (e) => {
     e.preventDefault();
     if (!d?.id) return;
-    put(route("detailaccounting.update", d.id), { preserveScroll: true });
+    put(route("detailaccounting.update", d.id), {
+      preserveScroll: true,
+      onSuccess: goBackToList, // ⬅️ torna a /accounting con gli stessi query param (es. ?page=2)
+    });
   };
 
   return (
@@ -39,23 +61,14 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
           <h1 className="text-2xl font-semibold tracking-tight">
             Modifica riga {d?.id ? <span className="text-gray-400">#{d.id}</span> : null}
           </h1>
-          {d?.accountingId ? (
-            <Link
-              href={route("accounting.edit", d.accountingId)}
-              className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50"
-            >
-              <ArrowUturnLeftIcon className="h-4 w-4" />
-              Torna alla fattura
-            </Link>
-          ) : (
-            <Link
-              href={route("accounting.index")}
-              className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50"
-            >
-              <ArrowUturnLeftIcon className="h-4 w-4" />
-              Elenco
-            </Link>
-          )}
+
+          <Link
+            href={route("accounting.index", backQuery || {})}
+            className="inline-flex items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm shadow-sm hover:bg-gray-50"
+          >
+            <ArrowUturnLeftIcon className="h-4 w-4" />
+            Torna all’elenco
+          </Link>
         </div>
 
         {success && (
@@ -68,17 +81,21 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
         <div className="bg-white shadow-sm sm:rounded-lg">
           <form onSubmit={onSubmit} className="p-6 space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* STATO */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Stato</label>
                 <SelectInput value={data.stato} onChange={(e) => setData("stato", e.target.value)}>
                   <option value="">— seleziona —</option>
                   {(statusOptions ?? []).map((v) => (
-                    <option key={v} value={v}>{v}</option>
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
                   ))}
                 </SelectInput>
                 {errors.stato && <p className="mt-1 text-sm text-red-600">{errors.stato}</p>}
               </div>
 
+              {/* MODALITÀ PAGAMENTO (libera) */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Modalità Pagamento</label>
                 <TextInput
@@ -90,17 +107,24 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
                 )}
               </div>
 
+              {/* TIPO PAGAMENTO (enum) */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Tipo Pagamento</label>
-                <TextInput
-                  value={data.tipoPagamento}
-                  onChange={(e) => setData("tipoPagamento", e.target.value)}
-                />
-                {errors.tipoPagamento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.tipoPagamento}</p>
-                )}
+                <SelectInput
+                  value={data.tipoPagamento ?? ""}
+                  onChange={(e) => setData("tipoPagamento", e.target.value || null)}
+                >
+                  <option value="">— seleziona —</option>
+                  {paymentOpts.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </SelectInput>
+                {errors.tipoPagamento && <p className="mt-1 text-sm text-red-600">{errors.tipoPagamento}</p>}
               </div>
 
+              {/* DATA SCADENZA */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Data Scadenza</label>
                 <input
@@ -109,15 +133,26 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
                   value={data.dataScadenzaPagamento}
                   onChange={(e) => setData("dataScadenzaPagamento", e.target.value)}
                 />
-                {errors.dataScadenzaPagamento && <p className="mt-1 text-sm text-red-600">{errors.dataScadenzaPagamento}</p>}
+                {errors.dataScadenzaPagamento && (
+                  <p className="mt-1 text-sm text-red-600">{errors.dataScadenzaPagamento}</p>
+                )}
               </div>
 
+              {/* IMPORTO */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Importo</label>
-                <TextInput value={data.importoPagamento} onChange={(e) => setData("importoPagamento", e.target.value)} />
-                {errors.importoPagamento && <p className="mt-1 text-sm text-red-600">{errors.importoPagamento}</p>}
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  value={data.importoPagamento}
+                  onChange={(e) => setData("importoPagamento", e.target.value)}
+                />
+                {errors.importoPagamento && (
+                  <p className="mt-1 text-sm text-red-600">{errors.importoPagamento}</p>
+                )}
               </div>
 
+              {/* NOTE */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Note</label>
                 <TextInput value={data.note} onChange={(e) => setData("note", e.target.value)} />
@@ -126,21 +161,12 @@ export default function Edit({ auth, detailAccounting, statusOptions = [], succe
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              {d?.accountingId ? (
-                <Link
-                  href={route("accounting.edit", d.accountingId)}
-                  className="rounded-md border bg-white px-4 py-2 text-sm shadow-sm hover:bg-gray-50"
-                >
-                  Annulla
-                </Link>
-              ) : (
-                <Link
-                  href={route("accounting.index")}
-                  className="rounded-md border bg-white px-4 py-2 text-sm shadow-sm hover:bg-gray-50"
-                >
-                  Annulla
-                </Link>
-              )}
+              <Link
+                href={route("accounting.index", backQuery || {})}
+                className="rounded-md border bg-white px-4 py-2 text-sm shadow-sm hover:bg-gray-50"
+              >
+                Annulla
+              </Link>
               <button
                 type="submit"
                 disabled={processing || !d?.id}

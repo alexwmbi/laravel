@@ -14,45 +14,81 @@ use Illuminate\Support\Facades\Log;
 
 class AccountingController extends Controller
 {
-    public function index()
+
+
+    public function index(Request $request)
     {
         $query = Accounting::query()
             ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
-        // Filtri
-        if ($v = request('stato'))            $query->where('Stato', $v);
-        if ($v = request('progressivo')) {
-            request()->query->remove('page');
-            $query->where('Progressivo', 'like', "%$v%");
+        // === Filtri ===
+        if ($request->filled('stato')) {
+            $query->whereRaw('LOWER(`Stato`) = ?', [strtolower($request->string('stato'))]);
         }
-        if ($v = request('progressivoinvio')) {
-            request()->query->remove('page');
-            $query->where('ProgressivoInvio', 'like', "%$v%");
-        }
-        if ($v = request('name') ?? request('nome')) {
-            request()->query->remove('page');
-            $query->where('FornitoreNome', 'like', "%$v%");
-        }
-        if ($v = request('numero')) {
-            request()->query->remove('page');
-            $query->where('Numero', 'like', "%$v%");
-        }
-        if ($v = request('date_from'))        $query->whereDate('Data', '>=', $v);
-        if ($v = request('date_to'))          $query->whereDate('Data', '<=', $v);
 
-        // Ordinamento (come Clients)
-        $sortField     = request('sort_field', 'Progressivo');
-        $sortDirection = request('sort_direction', 'desc');
-        $query->orderBy($sortField, $sortDirection);
+        if ($request->filled('progressivo')) {
+            $query->where('Progressivo', 'like', '%' . $request->string('progressivo') . '%');
+        }
 
-        $accountings = $query->paginate(10);
+        if ($request->filled('progressivoinvio')) {
+            $query->where('ProgressivoInvio', 'like', '%' . $request->string('progressivoinvio') . '%');
+        }
+
+        $name = $request->input('name', $request->input('nome'));
+        if (filled($name)) {
+            $query->where('FornitoreNome', 'like', '%' . $name . '%');
+        }
+
+        if ($request->filled('numero')) {
+            $query->where('Numero', 'like', '%' . $request->string('numero') . '%');
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('Data', '>=', $request->date('date_from')->format('Y-m-d'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
+        }
+
+        // === Ordinamento con allowlist ===
+        $allowedSort = [
+            'Progressivo',
+            'ProgressivoInvio',
+            'FornitoreNome',
+            'Numero',
+            'Data',
+            'ImportoTotaleDocumento',
+            'Stato',
+        ];
+        $sortField = $request->input('sort_field', 'Progressivo');
+        if (!in_array($sortField, $allowedSort, true)) {
+            $sortField = 'Progressivo';
+        }
+
+        $sortDirection = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        // === Ordinamento numerico per Progressivo (e opzionale per Numero)
+        if ($sortField === 'Progressivo') {
+            $query->orderByRaw('CAST(`Progressivo` AS UNSIGNED) ' . $sortDirection)
+                ->orderBy('Progressivo', $sortDirection); // tie-break stabile
+        } elseif ($sortField === 'Numero') {
+            $query->orderByRaw('CAST(`Numero` AS UNSIGNED) ' . $sortDirection)
+                ->orderBy('Numero', $sortDirection);
+        } else {
+            $query->orderBy($sortField, $sortDirection);
+        }
+
+        // === Paginate + conserva i filtri nei link ===
+        $accountings = $query->paginate(10)->appends($request->query());
 
         return inertia('Accounting/Index', [
             'accountings' => AccountingResource::collection($accountings),
-            'queryParams' => request()->query() ?: null,
+            'queryParams' => $request->query() ?: null,
             'success'     => session('success'),
         ]);
     }
+
+
 
     public function create()
     {
@@ -180,6 +216,7 @@ class AccountingController extends Controller
                     'note' => $d->note,
                 ];
             }),
+             'backQuery' => request()->query() ?: null,
         ]);
     }
 
@@ -280,7 +317,8 @@ class AccountingController extends Controller
                 'importoPagamento' => $detail->importoPagamento,
                 'note' => $detail->note,
             ],
-            'statusOptions' => ['aperta','pagata','parziale'],
+            'statusOptions' => ['aperta', 'pagata', 'parziale'],
+            'backQuery'     => request()->query() ?: null,
             'success' => session('success'),
         ]);
     }

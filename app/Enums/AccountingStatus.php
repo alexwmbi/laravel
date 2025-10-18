@@ -4,9 +4,9 @@ namespace App\Enums;
 
 enum AccountingStatus: string
 {
-    case APERTA   = 'Aperta';
-    case PAGATA   = 'Pagata';
-    case PARZIALE = 'Parziale';
+    case APERTA   = 'aperta';
+    case PAGATA   = 'pagata';
+    case PARZIALE = 'parziale';
 
     public function label(): string
     {

@@ -11,28 +11,67 @@ export default function Index({ auth, accountings, queryParams = null, success }
   queryParams = queryParams || {};
 
   const searchFieldChanged = (name, value) => {
-    if (value) {
-      queryParams[name] = value;
-    } else {
-      delete queryParams[name];
-    }
-    router.get(route("accounting.index"), queryParams);
-  };
+  // clona per evitare mutazioni strane
+  const next = { ...queryParams };
+
+  if (value) {
+    next[name] = value;
+  } else {
+    delete next[name];
+  }
+
+  // ogni volta che cambi un filtro, riparti dalla prima pagina
+  next.page = 1;
+
+  router.get(route("accounting.index"), next, {
+    preserveState: true,
+    replace: true,
+  });
+};
+
+const sortChanged = (name) => {
+  const next = { ...queryParams };
+
+  if (name === next.sort_field) {
+    next.sort_direction = next.sort_direction === "asc" ? "desc" : "asc";
+  } else {
+    next.sort_field = name;
+    next.sort_direction = "asc";
+  }
+
+  // cambio ordinamento => torna pagina 1
+  next.page = 1;
+
+  router.get(route("accounting.index"), next, {
+    preserveState: true,
+    replace: true,
+  });
+};
+
+
+  // const searchFieldChanged = (name, value) => {
+  //   if (value) {
+  //     queryParams[name] = value;
+  //   } else {
+  //     delete queryParams[name];
+  //   }
+  //   router.get(route("accounting.index"), queryParams);
+  // };
 
   const onKeyPress = (name, e) => {
     if (e.key !== "Enter") return;
     searchFieldChanged(name, e.target.value);
   };
 
-  const sortChanged = (name) => {
-    if (name === queryParams.sort_field) {
-      queryParams.sort_direction = queryParams.sort_direction === "asc" ? "desc" : "asc";
-    } else {
-      queryParams.sort_field = name;
-      queryParams.sort_direction = "asc";
-    }
-    router.get(route("accounting.index"), queryParams);
-  };
+  // const sortChanged = (name) => {
+  //   if (name === queryParams.sort_field) {
+  //     queryParams.sort_direction = queryParams.sort_direction === "asc" ? "desc" : "asc";
+  //   } else {
+  //     queryParams.sort_field = name;
+  //     queryParams.sort_direction = "asc";
+  //   }
+  //   router.get(route("accounting.index"), queryParams);
+  // };
 
   const deleteAccounting = (a) => {
     if (!window.confirm("Vuoi eliminare la fattura acquisto?")) return;
@@ -241,7 +280,7 @@ export default function Index({ auth, accountings, queryParams = null, success }
                         </td>
                         <td className="px-3 py-2 text-nowrap">
                           <div className="flex gap-2">
-                            <Link href={route("accounting.edit", a.id)} className="text-blue-600">
+                            <Link href={route("accounting.edit", { accounting: a.id, ...queryParams })} className="text-blue-600">
                               <PencilSquareIcon className="w-5 h-5" />
                             </Link>
                             <button onClick={() => deleteAccounting(a)} className="text-red-500">
@@ -307,7 +346,7 @@ export default function Index({ auth, accountings, queryParams = null, success }
                                     <td className="px-3 py-2">
                                       <div className="flex items-center justify-center gap-2">
                                         <Link
-                                          href={route("detailaccounting.edit", d.id)}
+                                          href={route("detailaccounting.edit",{ detail: d.id, ...queryParams })}
                                           className="text-blue-600 hover:text-blue-800"
                                           title="Modifica riga"
                                         >
