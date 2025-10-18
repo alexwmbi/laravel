@@ -7,83 +7,75 @@ import { ChevronUpIcon, ChevronDownIcon, PencilSquareIcon, TrashIcon } from "@he
 import Pagination from "@/Components/Pagination";
 import { ACCOUNTING_STATUS_CLASS_MAP, ACCOUNTING_STATUS_TEXT_MAP } from "@/constants.jsx";
 
-export default function Index({ auth, accountings, queryParams = null, success }) {
+const formatEUR = (v) => {
+  const n = Number(v ?? 0);
+  if (Number.isNaN(n)) return "-";
+  return n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+};
+
+// === Helper: converte "YYYY-MM-DD" (o ISO) -> "gg/mm/aaaa"
+const fmtDateIT = (val) => {
+  if (!val) return "";
+  const s = String(val);
+
+  // match "YYYY-MM-DD" o "YYYY-MM-DDTHH:mm:ss"
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+  // se è già "gg/mm/aaaa"
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+
+  // fallback robusto
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return s;
+};
+
+export default function Index({ auth, accountings, queryParams = null, success, totals = null }) {
   queryParams = queryParams || {};
+  totals = totals || { count: 0, sum_docs: 0, sum_paid: 0, sum_due: 0 };
 
   const searchFieldChanged = (name, value) => {
-  // clona per evitare mutazioni strane
-  const next = { ...queryParams };
+    const next = { ...queryParams };
+    if (value) next[name] = value;
+    else delete next[name];
+    next.page = 1;
+    router.get(route("accounting.index"), next, { preserveState: true, replace: true });
+  };
 
-  if (value) {
-    next[name] = value;
-  } else {
-    delete next[name];
-  }
+  const resetFilters = () => {
+    router.get(route("accounting.index"), {}, { preserveState: false, replace: true });
+  };
 
-  // ogni volta che cambi un filtro, riparti dalla prima pagina
-  next.page = 1;
-
-  router.get(route("accounting.index"), next, {
-    preserveState: true,
-    replace: true,
-  });
-};
-
-const sortChanged = (name) => {
-  const next = { ...queryParams };
-
-  if (name === next.sort_field) {
-    next.sort_direction = next.sort_direction === "asc" ? "desc" : "asc";
-  } else {
-    next.sort_field = name;
-    next.sort_direction = "asc";
-  }
-
-  // cambio ordinamento => torna pagina 1
-  next.page = 1;
-
-  router.get(route("accounting.index"), next, {
-    preserveState: true,
-    replace: true,
-  });
-};
-
-
-  // const searchFieldChanged = (name, value) => {
-  //   if (value) {
-  //     queryParams[name] = value;
-  //   } else {
-  //     delete queryParams[name];
-  //   }
-  //   router.get(route("accounting.index"), queryParams);
-  // };
+  const sortChanged = (name) => {
+    const next = { ...queryParams };
+    if (name === next.sort_field) next.sort_direction = next.sort_direction === "asc" ? "desc" : "asc";
+    else {
+      next.sort_field = name;
+      next.sort_direction = "asc";
+    }
+    next.page = 1;
+    router.get(route("accounting.index"), next, { preserveState: true, replace: true });
+  };
 
   const onKeyPress = (name, e) => {
     if (e.key !== "Enter") return;
     searchFieldChanged(name, e.target.value);
   };
 
-  // const sortChanged = (name) => {
-  //   if (name === queryParams.sort_field) {
-  //     queryParams.sort_direction = queryParams.sort_direction === "asc" ? "desc" : "asc";
-  //   } else {
-  //     queryParams.sort_field = name;
-  //     queryParams.sort_direction = "asc";
-  //   }
-  //   router.get(route("accounting.index"), queryParams);
-  // };
-
   const deleteAccounting = (a) => {
     if (!window.confirm("Vuoi eliminare la fattura acquisto?")) return;
     router.delete(route("accounting.destroy", a.id));
   };
 
-  // ⬇️ NUOVO: elimina una riga pagamento
   const deleteDetail = (detail) => {
     if (!window.confirm("Vuoi eliminare la riga pagamento?")) return;
-    router.delete(route("detailaccounting.destroy", detail.id), {
-      preserveScroll: true,
-    });
+    router.delete(route("detailaccounting.destroy", detail.id), { preserveScroll: true });
   };
 
   const addDetailRow = (accountingId) => {
@@ -108,6 +100,8 @@ const sortChanged = (name) => {
               (queryParams.sort_field === field && queryParams.sort_direction === "asc" ? "text-black" : "text-gray-400")
             }
           />
+        </div>
+        <div className="flex flex-col leading-none -ml-2">
           <ChevronDownIcon
             className={
               "w-4 -mt-1 " +
@@ -124,7 +118,7 @@ const sortChanged = (name) => {
       user={auth.user}
       header={
         <div className="flex justify-between items-center">
-          <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Contabilita</h2>
+          <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Contabilità</h2>
           <Link
             href={route("accounting.create")}
             className="bg-emerald-200 py-1 px-3 text-emerald-600 rounded shadow hover:bg-emerald-400 hover:text-white"
@@ -134,17 +128,105 @@ const sortChanged = (name) => {
         </div>
       }
     >
-      <Head title="Contabilita" />
+      <Head title="Contabilità" />
       {success && <div className="bg-emerald-500 py-2 px-4 text-white rounded">{success}</div>}
 
-      <div className="py-12">
+      <div className="py-6">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+          {/* ===== PANNELLO FILTRI + TOTALI ===== */}
+          <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-900 p-4">
+            <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
+              {/* Filtri rapidi */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                {/* Fornitore */}
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Fornitore</label>
+                  <TextInput
+                    className="w-full"
+                    defaultValue={queryParams.name || queryParams.nome || ""}
+                    placeholder="Cerca fornitore…"
+                    onBlur={(e) => searchFieldChanged("name", e.target.value)}
+                    onKeyPress={(e) => onKeyPress("name", e)}
+                  />
+                </div>
+
+                {/* Data da */}
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Data da</label>
+                  <TextInput
+                    type="date"
+                    className="w-full"
+                    defaultValue={queryParams.date_from || ""}
+                    onChange={(e) => searchFieldChanged("date_from", e.target.value)}
+                  />
+                </div>
+
+                {/* Data a */}
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Data a</label>
+                  <TextInput
+                    type="date"
+                    className="w-full"
+                    defaultValue={queryParams.date_to || ""}
+                    onChange={(e) => searchFieldChanged("date_to", e.target.value)}
+                  />
+                </div>
+
+                {/* Stato pagamento */}
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Stato pagamento</label>
+                  <SelectInput
+                    className="w-full"
+                    defaultValue={queryParams.stato || ""}
+                    onChange={(e) => searchFieldChanged("stato", e.target.value)}
+                  >
+                    <option value="">Tutti</option>
+                    <option value="aperta">Aperta</option>
+                    <option value="pagata">Pagata</option>
+                    <option value="parziale">Parziale</option>
+                  </SelectInput>
+                </div>
+              </div>
+
+              {/* Azioni */}
+              <div className="flex gap-2">
+                <button
+                  onClick={resetFilters}
+                  className="px-3 py-2 rounded-md text-sm font-medium bg-white border border-gray-300
+                             hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700"
+                >
+                  Reset filtri
+                </button>
+              </div>
+            </div>
+
+            {/* Totali */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-lg bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Fatture</div>
+                <div className="text-xl font-semibold">{totals.count ?? 0}</div>
+              </div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Totale documenti</div>
+                <div className="text-xl font-semibold">{formatEUR(totals.sum_docs)}</div>
+              </div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Pagato</div>
+                <div className="text-xl font-semibold">{formatEUR(totals.sum_paid)}</div>
+              </div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 border border-indigo-100 dark:border-indigo-800 p-3">
+                <div className="text-xs text-gray-500 dark:text-gray-400">Residuo</div>
+                <div className="text-xl font-semibold">{formatEUR(totals.sum_due)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* ===== TABELLA ===== */}
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
             <div className="p-6 text-gray-900 dark:text-gray-100">
               <table className="w-full table-fixed text-left text-sm text-gray-600 dark:text-gray-300">
                 <colgroup>
                   <col className="w-[12ch]" />
-                  <col className="w-[16ch]" />
                   <col />
                   <col className="w-[14ch]" />
                   <col className="w-[14ch]" />
@@ -154,10 +236,8 @@ const sortChanged = (name) => {
                 </colgroup>
 
                 <thead>
-                  {/* Riga intestazioni */}
                   <tr className="text-xs uppercase text-gray-700 bg-transparent">
                     {headCell("PROGRESSIVO", "Progressivo")}
-                    {headCell("PROGRESSIVO INVIO", "ProgressivoInvio")}
                     {headCell("FORNITORE", "FornitoreNome")}
                     {headCell("NUMERO", "Numero")}
                     {headCell("DATA", "Data")}
@@ -166,7 +246,6 @@ const sortChanged = (name) => {
                     <th className="px-3 py-2 whitespace-nowrap">AZIONI</th>
                   </tr>
 
-                  {/* Riga filtri */}
                   <tr className="text-nowrap align-bottom">
                     <th className="px-3 pb-3 pt-1">
                       <TextInput
@@ -175,15 +254,6 @@ const sortChanged = (name) => {
                         placeholder="Progressivo"
                         onBlur={(e) => searchFieldChanged("progressivo", e.target.value)}
                         onKeyPress={(e) => onKeyPress("progressivo", e)}
-                      />
-                    </th>
-                    <th className="px-3 pb-3 pt-1">
-                      <TextInput
-                        className="w-full"
-                        defaultValue={queryParams.progressivoinvio}
-                        placeholder="Progressivo Invio"
-                        onBlur={(e) => searchFieldChanged("progressivoinvio", e.target.value)}
-                        onKeyPress={(e) => onKeyPress("progressivoinvio", e)}
                       />
                     </th>
                     <th className="px-3 pb-3 pt-1">
@@ -231,7 +301,6 @@ const sortChanged = (name) => {
 
                     <th className="px-3 pb-3 pt-1"></th>
 
-                    {/* STATO */}
                     <th className="px-3 pb-3 pt-1">
                       <SelectInput
                         className="w-full"
@@ -244,20 +313,20 @@ const sortChanged = (name) => {
                         <option value="parziale">Parziale</option>
                       </SelectInput>
                     </th>
+
                     <th className="px-3 pb-3 pt-1"></th>
                   </tr>
                 </thead>
 
                 <tbody>
                   <tr>
-                    <td colSpan={8} className="h-3"></td>
+                    <td colSpan={7} className="h-3"></td>
                   </tr>
 
                   {accountings.data.map((a) => (
                     <React.Fragment key={a.id}>
                       <tr className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
                         <th className="px-3 py-2">Progressivo</th>
-                        <th className="px-3 py-2">Progressivo Invio</th>
                         <th className="px-3 py-2">Fornitore</th>
                         <th className="px-3 py-2">Numero</th>
                         <th className="px-3 py-2">Data</th>
@@ -268,11 +337,11 @@ const sortChanged = (name) => {
 
                       <tr className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-50">
                         <td className="px-3 py-2 whitespace-nowrap">{a.Progressivo}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{a.ProgressivoInvio}</td>
                         <td className="px-3 py-2">{a.FornitoreNome}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{a.Numero}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{a.Data}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{a.ImportoTotaleDocumento}</td>
+                        {/* ⬇️ formato gg/mm/aaaa */}
+                        <td className="px-3 py-2 whitespace-nowrap">{fmtDateIT(a.Data)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatEUR(a.ImportoTotaleDocumento)}</td>
                         <td className="px-3 py-2">
                           <span className={"px-2 py-1 rounded text-white " + ACCOUNTING_STATUS_CLASS_MAP[a.Stato]}>
                             {ACCOUNTING_STATUS_TEXT_MAP[a.Stato] || a.Stato}
@@ -292,7 +361,7 @@ const sortChanged = (name) => {
 
                       {a.detail_accounting && a.detail_accounting.length > 0 && (
                         <tr>
-                          <td colSpan={8} className="pt-2">
+                          <td colSpan={7} className="pt-2">
                             <div className="flex justify-between items-center">
                               <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
                                 Righe pagamento
@@ -322,7 +391,7 @@ const sortChanged = (name) => {
                               <thead className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
                                 <tr>
                                   <th className="px-3 py-2">STATO</th>
-                                  <th className="px-3 py-2">MODALITA PAGAMENTO</th>
+                                  <th className="px-3 py-2">MODALITÀ PAGAMENTO</th>
                                   <th className="px-3 py-2">TIPO PAGAMENTO</th>
                                   <th className="px-3 py-2">DATA SCADENZA</th>
                                   <th className="px-3 py-2">IMPORTO</th>
@@ -340,19 +409,19 @@ const sortChanged = (name) => {
                                     </td>
                                     <td className="px-3 py-2">{d.modalitaPagamento}</td>
                                     <td className="px-3 py-2">{d.tipoPagamento || "-"}</td>
-                                    <td className="px-3 py-2">{d.dataScadenzaPagamento || ""}</td>
-                                    <td className="px-3 py-2">{d.importoPagamento || ""}</td>
+                                    {/* ⬇️ formato gg/mm/aaaa */}
+                                    <td className="px-3 py-2">{fmtDateIT(d.dataScadenzaPagamento)}</td>
+                                    <td className="px-3 py-2">{formatEUR(d.importoPagamento ?? 0)}</td>
                                     <td className="px-3 py-2">{d.note || ""}</td>
                                     <td className="px-3 py-2">
                                       <div className="flex items-center justify-center gap-2">
                                         <Link
-                                          href={route("detailaccounting.edit",{ detail: d.id, ...queryParams })}
+                                          href={route("detailaccounting.edit", { detail: d.id, ...queryParams })}
                                           className="text-blue-600 hover:text-blue-800"
                                           title="Modifica riga"
                                         >
                                           <PencilSquareIcon className="w-5 h-5" />
                                         </Link>
-                                        {/* ⬇️ NUOVO: cestino rosso per cancellare la riga */}
                                         <button
                                           onClick={() => deleteDetail(d)}
                                           className="text-red-500 hover:text-red-700"

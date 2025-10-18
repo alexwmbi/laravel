@@ -18,39 +18,66 @@ class AccountingController extends Controller
 
     public function index(Request $request)
     {
-        $query = Accounting::query()
-            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+        // ===== 1) Base query con filtri =====
+        $base = Accounting::query();
 
-        // === Filtri ===
+        // Filtri
         if ($request->filled('stato')) {
-            $query->whereRaw('LOWER(`Stato`) = ?', [strtolower($request->string('stato'))]);
+            $base->whereRaw('LOWER(`Stato`) = ?', [strtolower($request->string('stato'))]);
         }
 
         if ($request->filled('progressivo')) {
-            $query->where('Progressivo', 'like', '%' . $request->string('progressivo') . '%');
+            $base->where('Progressivo', 'like', '%' . $request->string('progressivo') . '%');
         }
 
         if ($request->filled('progressivoinvio')) {
-            $query->where('ProgressivoInvio', 'like', '%' . $request->string('progressivoinvio') . '%');
+            $base->where('ProgressivoInvio', 'like', '%' . $request->string('progressivoinvio') . '%');
         }
 
         $name = $request->input('name', $request->input('nome'));
         if (filled($name)) {
-            $query->where('FornitoreNome', 'like', '%' . $name . '%');
+            $base->where('FornitoreNome', 'like', '%' . $name . '%');
         }
 
         if ($request->filled('numero')) {
-            $query->where('Numero', 'like', '%' . $request->string('numero') . '%');
+            $base->where('Numero', 'like', '%' . $request->string('numero') . '%');
         }
 
         if ($request->filled('date_from')) {
-            $query->whereDate('Data', '>=', $request->date('date_from')->format('Y-m-d'));
+            $base->whereDate('Data', '>=', $request->date('date_from')->format('Y-m-d'));
         }
         if ($request->filled('date_to')) {
-            $query->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
+            $base->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
         }
 
-        // === Ordinamento con allowlist ===
+        // ===== 2) Totali con gli stessi filtri =====
+        // n. fatture
+        $count = (clone $base)->count();
+
+        // somma totale documenti
+        $sumDocs = (clone $base)->sum('ImportoTotaleDocumento');
+
+        // somma pagato: somma delle righe pagamento in stato 'pagata' per le fatture filtrate
+        $filteredIdsSub = (clone $base)->select('id'); // subquery degli id fattura filtrati
+        $sumPaid = DB::table('detail_accountings')
+            ->joinSub($filteredIdsSub, 'a', 'detail_accountings.accountingId', '=', 'a.id')
+            ->where('detail_accountings.stato', '=', 'pagata')
+            ->sum('detail_accountings.importoPagamento');
+
+        $sumDue = max(0, (float)$sumDocs - (float)$sumPaid);
+
+        $totals = [
+            'count'    => (int) $count,
+            'sum_docs' => (float) $sumDocs,
+            'sum_paid' => (float) $sumPaid,
+            'sum_due'  => (float) $sumDue,
+        ];
+
+        // ===== 3) Listing con ordinamento/paginazione =====
+        $tableQuery = (clone $base)
+            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+
+        // Allowlist campi ordinamento
         $allowedSort = [
             'Progressivo',
             'ProgressivoInvio',
@@ -67,26 +94,30 @@ class AccountingController extends Controller
 
         $sortDirection = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        // === Ordinamento numerico per Progressivo (e opzionale per Numero)
+        // Ordinamento numerico per Progressivo/Numero se necessario
         if ($sortField === 'Progressivo') {
-            $query->orderByRaw('CAST(`Progressivo` AS UNSIGNED) ' . $sortDirection)
-                ->orderBy('Progressivo', $sortDirection); // tie-break stabile
+            $tableQuery
+                ->orderByRaw('CAST(`Progressivo` AS UNSIGNED) ' . $sortDirection)
+                ->orderBy('Progressivo', $sortDirection);
         } elseif ($sortField === 'Numero') {
-            $query->orderByRaw('CAST(`Numero` AS UNSIGNED) ' . $sortDirection)
+            $tableQuery
+                ->orderByRaw('CAST(`Numero` AS UNSIGNED) ' . $sortDirection)
                 ->orderBy('Numero', $sortDirection);
         } else {
-            $query->orderBy($sortField, $sortDirection);
+            $tableQuery->orderBy($sortField, $sortDirection);
         }
 
-        // === Paginate + conserva i filtri nei link ===
-        $accountings = $query->paginate(10)->appends($request->query());
+        $accountings = $tableQuery->paginate(10)->appends($request->query());
 
+        // ===== 4) Response =====
         return inertia('Accounting/Index', [
             'accountings' => AccountingResource::collection($accountings),
             'queryParams' => $request->query() ?: null,
             'success'     => session('success'),
+            'totals'      => $totals,
         ]);
     }
+
 
 
 
@@ -216,7 +247,7 @@ class AccountingController extends Controller
                     'note' => $d->note,
                 ];
             }),
-             'backQuery' => request()->query() ?: null,
+            'backQuery' => request()->query() ?: null,
         ]);
     }
 
