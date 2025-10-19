@@ -137,7 +137,7 @@ export default function Index({ auth, accountings, queryParams = null, success, 
           <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-900 p-4">
             <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
               {/* Filtri rapidi */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
                 {/* Fornitore */}
                 <div>
                   <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Fornitore</label>
@@ -186,6 +186,20 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                     <option value="parziale">Parziale</option>
                   </SelectInput>
                 </div>
+
+                {/* Tipo documento */}
+                <div>
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Tipo documento</label>
+                  <SelectInput
+                    className="w-full"
+                    defaultValue={queryParams.tipo_documento || ""}
+                    onChange={(e) => searchFieldChanged("tipo_documento", e.target.value)}
+                  >
+                    <option value="">Tutti</option>
+                    <option value="TD01">Fattura (TD01)</option>
+                    <option value="TD04">Nota di credito (TD04)</option>
+                  </SelectInput>
+                </div>
               </div>
 
               {/* Azioni */}
@@ -226,16 +240,17 @@ export default function Index({ auth, accountings, queryParams = null, success, 
             <div className="p-6 text-gray-900 dark:text-gray-100">
               <table className="w-full table-fixed text-left text-sm text-gray-600 dark:text-gray-300">
                 <colgroup>
-                  <col className="w-[12ch]" />
-                  <col />
-                  <col className="w-[14ch]" />
-                  <col className="w-[14ch]" />
-                  <col className="w-[12ch]" />
-                  <col className="w-[12ch]" />
-                  <col className="w-[10ch]" />
+                  <col className="w-[12ch]" />   {/* PROGRESSIVO */}
+                  <col />                         {/* FORNITORE */}
+                  <col className="w-[14ch]" />    {/* NUMERO */}
+                  <col className="w-[14ch]" />    {/* DATA */}
+                  <col className="w-[12ch]" />    {/* TOTALE */}
+                  <col className="w-[12ch]" />    {/* STATO */}
+                  <col className="w-[10ch]" />    {/* AZIONI */}
                 </colgroup>
 
                 <thead>
+                  {/* Riga intestazioni */}
                   <tr className="text-xs uppercase text-gray-700 bg-transparent">
                     {headCell("PROGRESSIVO", "Progressivo")}
                     {headCell("FORNITORE", "FornitoreNome")}
@@ -246,6 +261,7 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                     <th className="px-3 py-2 whitespace-nowrap">AZIONI</th>
                   </tr>
 
+                  {/* Riga filtri della tabella (opzionale, lasciata com'era) */}
                   <tr className="text-nowrap align-bottom">
                     <th className="px-3 pb-3 pt-1">
                       <TextInput
@@ -299,8 +315,10 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                       </div>
                     </th>
 
+                    {/* placeholder TOTALE (nessun filtro) */}
                     <th className="px-3 pb-3 pt-1"></th>
 
+                    {/* STATO */}
                     <th className="px-3 pb-3 pt-1">
                       <SelectInput
                         className="w-full"
@@ -314,6 +332,7 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                       </SelectInput>
                     </th>
 
+                    {/* AZIONI */}
                     <th className="px-3 pb-3 pt-1"></th>
                   </tr>
                 </thead>
@@ -338,15 +357,29 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                       <tr className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-50">
                         <td className="px-3 py-2 whitespace-nowrap">{a.Progressivo}</td>
                         <td className="px-3 py-2">{a.FornitoreNome}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{a.Numero}</td>
-                        {/* ⬇️ formato gg/mm/aaaa */}
+
+                        {/* Numero + badge NC */}
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {a.Numero}
+                          {a.TipoDocumento === "TD04" && (
+                            <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 border border-pink-200">
+                              NC
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Data gg/mm/aaaa */}
                         <td className="px-3 py-2 whitespace-nowrap">{fmtDateIT(a.Data)}</td>
+
+                        {/* Totale documento (può essere negativo per NC) */}
                         <td className="px-3 py-2 whitespace-nowrap">{formatEUR(a.ImportoTotaleDocumento)}</td>
+
                         <td className="px-3 py-2">
                           <span className={"px-2 py-1 rounded text-white " + ACCOUNTING_STATUS_CLASS_MAP[a.Stato]}>
                             {ACCOUNTING_STATUS_TEXT_MAP[a.Stato] || a.Stato}
                           </span>
                         </td>
+
                         <td className="px-3 py-2 text-nowrap">
                           <div className="flex gap-2">
                             <Link href={route("accounting.edit", { accounting: a.id, ...queryParams })} className="text-blue-600">
@@ -409,9 +442,12 @@ export default function Index({ auth, accountings, queryParams = null, success, 
                                     </td>
                                     <td className="px-3 py-2">{d.modalitaPagamento}</td>
                                     <td className="px-3 py-2">{d.tipoPagamento || "-"}</td>
-                                    {/* ⬇️ formato gg/mm/aaaa */}
+                                    {/* Data gg/mm/aaaa */}
                                     <td className="px-3 py-2">{fmtDateIT(d.dataScadenzaPagamento)}</td>
-                                    <td className="px-3 py-2">{formatEUR(d.importoPagamento ?? 0)}</td>
+                                    {/* Importo coerente con TD01/TD04 */}
+                                    <td className="px-3 py-2">
+                                      {formatEUR(((a.TipoDocumento === "TD04") ? -1 : 1) * Number(d.importoPagamento ?? 0))}
+                                    </td>
                                     <td className="px-3 py-2">{d.note || ""}</td>
                                     <td className="px-3 py-2">
                                       <div className="flex items-center justify-center gap-2">

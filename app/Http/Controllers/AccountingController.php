@@ -11,10 +11,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-
 class AccountingController extends Controller
 {
-
+    /** Tipi SdI che rappresentano note di credito */
+    private const CREDIT_NOTE_TYPES = ['TD04'];
 
     public function index(Request $request)
     {
@@ -50,21 +50,42 @@ class AccountingController extends Controller
             $base->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
         }
 
+        // Filtra per tipo documento (TD01 fattura, TD04 nota di credito)
+        if ($request->filled('tipo_documento')) {
+            $base->where('TipoDocumento', '=', $request->string('tipo_documento'));
+        }
+
         // ===== 2) Totali con gli stessi filtri =====
-        // n. fatture
         $count = (clone $base)->count();
 
-        // somma totale documenti
-        $sumDocs = (clone $base)->sum('ImportoTotaleDocumento');
+        // Totale documenti con segno coerente al tipo (robusto anche se ci fossero dati pregressi non normalizzati)
+        $sumDocs = (clone $base)->selectRaw("
+            COALESCE(SUM(
+                CASE
+                  WHEN TipoDocumento IN ('TD04') THEN -ABS(ImportoTotaleDocumento)
+                  ELSE ABS(ImportoTotaleDocumento)
+                END
+            ), 0) as s
+        ")->value('s');
 
-        // somma pagato: somma delle righe pagamento in stato 'pagata' per le fatture filtrate
-        $filteredIdsSub = (clone $base)->select('id'); // subquery degli id fattura filtrati
-        $sumPaid = DB::table('detail_accountings')
-            ->joinSub($filteredIdsSub, 'a', 'detail_accountings.accountingId', '=', 'a.id')
-            ->where('detail_accountings.stato', '=', 'pagata')
-            ->sum('detail_accountings.importoPagamento');
+        // Pagato con segno coerente (le NC sottraggono)
+        $filteredIdsSub = (clone $base)->select('id'); // subquery id filtrati
+        $sumPaid = DB::table('detail_accountings as d')
+            ->joinSub($filteredIdsSub, 'a', 'd.accountingId', '=', 'a.id')
+            ->join('accountings as h', 'h.id', '=', 'd.accountingId')
+            ->where('d.stato', '=', 'pagata')
+            ->selectRaw("
+                COALESCE(SUM(
+                  CASE
+                    WHEN h.TipoDocumento IN ('TD04') THEN -ABS(d.importoPagamento)
+                    ELSE ABS(d.importoPagamento)
+                  END
+                ), 0) as s
+            ")
+            ->value('s');
 
-        $sumDue = max(0, (float)$sumDocs - (float)$sumPaid);
+        // Residuo = Totale documenti - Pagato (può essere negativo se prevalgono NC)
+        $sumDue = (float)$sumDocs - (float)$sumPaid;
 
         $totals = [
             'count'    => (int) $count,
@@ -117,9 +138,6 @@ class AccountingController extends Controller
             'totals'      => $totals,
         ]);
     }
-
-
-
 
     public function create()
     {
@@ -176,6 +194,11 @@ class AccountingController extends Controller
                     'Stato'                    => 'aperta',
                 ];
 
+                // ===== segno coerente con TipoDocumento =====
+                $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
+                $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
+                $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
+
                 // logging campi vuoti (facoltativo)
                 $campiVuoti = [];
                 foreach ($Accounting_array as $k => $v) {
@@ -210,7 +233,7 @@ class AccountingController extends Controller
             } catch (\Throwable $e) {
                 Log::error("❌ [$fileName] Errore: " . $e->getMessage());
                 $importErrors[] = [
-                    'file' => $fileName,
+                    'file'  => $fileName,
                     'error' => $e->getMessage()
                 ];
             }
@@ -259,7 +282,6 @@ class AccountingController extends Controller
     public function update(UpdateAccountingRequest $request, Accounting $accounting)
     {
         $validated = $request->validated();
-
         $accounting->update($validated);
 
         return redirect()->route('accounting.index')->with('success', 'Progressivo modificato');
@@ -286,10 +308,31 @@ class AccountingController extends Controller
             'Numero'                   => ['sometimes', 'nullable', 'string'],
             'Data'                     => ['sometimes', 'nullable', 'date'],
             'ImportoTotaleDocumento'   => ['sometimes', 'nullable', 'numeric'],
+            'TipoDocumento'            => ['sometimes', 'required', 'in:TD01,TD04'],
             'Stato'                    => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
         ]);
 
+        // Tipo effettivo (nuovo o esistente) per capire il segno
+        $tipo = $data['TipoDocumento'] ?? $accounting->TipoDocumento;
+        $isCredit = in_array($tipo, self::CREDIT_NOTE_TYPES, true);
+
+        // Se l'importo arriva nel payload, normalizza il segno subito
+        if (array_key_exists('ImportoTotaleDocumento', $data) && $data['ImportoTotaleDocumento'] !== null) {
+            $amount = abs((float)$data['ImportoTotaleDocumento']);
+            $data['ImportoTotaleDocumento'] = $isCredit ? -$amount : $amount;
+        }
+
+        // Aggiorna i campi passati
         $accounting->update($data);
+
+        // Se è cambiato solo il tipo, riallinea il segno dell'importo già in DB
+        if (!array_key_exists('ImportoTotaleDocumento', $data) && array_key_exists('TipoDocumento', $data)) {
+            $amount = abs((float)$accounting->ImportoTotaleDocumento);
+            $accounting->update([
+                'ImportoTotaleDocumento' => $isCredit ? -$amount : $amount,
+            ]);
+        }
+
         return back()->with('success', 'Fattura aggiornata');
     }
 
@@ -350,7 +393,7 @@ class AccountingController extends Controller
             ],
             'statusOptions' => ['aperta', 'pagata', 'parziale'],
             'backQuery'     => request()->query() ?: null,
-            'success' => session('success'),
+            'success'       => session('success'),
         ]);
     }
 }

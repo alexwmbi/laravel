@@ -13,9 +13,20 @@ export default function AccountingSummaryPanel({
   totals = { count: 0, sum_docs: 0, sum_paid: 0, sum_due: 0 },
   onFilterChange = () => {},
   onReset = () => {},
-  names = { supplier: "name", date_from: "date_from", date_to: "date_to", status: "stato" },
+  // ⬇️ come Accounting: doc_type = "tipo"
+  names = { supplier: "name", date_from: "date_from", date_to: "date_to", status: "stato", doc_type: "tipo" },
 }) {
-  const n = { supplier: "name", date_from: "date_from", date_to: "date_to", status: "stato", ...names };
+  const n = {
+    supplier: "name",
+    date_from: "date_from",
+    date_to: "date_to",
+    status: "stato",
+    doc_type: "tipo",
+    ...names,
+  };
+
+  const hasDocType = !!n.doc_type;
+  const gridCols = hasDocType ? "md:grid-cols-5" : "md:grid-cols-4";
 
   const onKeyPress = (param, e) => {
     if (e.key !== "Enter") return;
@@ -26,7 +37,7 @@ export default function AccountingSummaryPanel({
     <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-900 p-4">
       <div className="flex flex-col lg:flex-row gap-4 lg:items-end lg:justify-between">
         {/* Filtri */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridCols} gap-3 items-end`}>
           <div>
             <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Fornitore</label>
             <TextInput
@@ -71,6 +82,21 @@ export default function AccountingSummaryPanel({
               <option value="parziale">Parziale</option>
             </SelectInput>
           </div>
+
+          {hasDocType && (
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Tipo documento</label>
+              <SelectInput
+                className="w-full"
+                defaultValue={queryParams[n.doc_type] || ""}
+                onChange={(e) => onFilterChange(n.doc_type, e.target.value)}
+              >
+                <option value="">Tutti</option>
+                <option value="TD01">Fattura (TD01)</option>
+                <option value="TD04">Nota di credito (TD04)</option>
+              </SelectInput>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2">

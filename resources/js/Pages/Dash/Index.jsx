@@ -59,6 +59,7 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
     delete next.acc_date_from;
     delete next.acc_date_to;
     delete next.acc_stato;
+    delete next.acc_tipo_documento; // ⬅️ nuovo filtro
     router.get(route("dashboard.index"), next, { preserveState: false, replace: true });
   };
 
@@ -68,14 +69,8 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Lavori
+            Dashboard
           </h2>
-          <Link
-            href={route("work.create")}
-            className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
-          >
-            Lavori Attivi
-          </Link>
         </div>
       }
     >
@@ -94,7 +89,14 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
               date_from: "acc_date_from",
               date_to: "acc_date_to",
               status: "acc_stato",
+              doc_type: "acc_tipo_documento", // ⬅️ nuovo nome parametro
             }}
+            docTypeOptions={[
+              { value: "",     label: "Tutti" },
+              { value: "TD01", label: "Fattura (TD01)" },
+              { value: "TD24", label: "Fattura diff. (TD24)" },
+              { value: "TD04", label: "Nota di credito (TD04)" },
+            ]}
           />
 
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
@@ -138,7 +140,7 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
                   <tr className="text-nowrap">
                     <th className="px-3 py-2">
                       <TextInput
-                      key={`name:${queryParams.name || ""}`}
+                        key={`name:${queryParams.name || ""}`}
                         className="w-full"
                         defaultValue={queryParams.name}
                         placeholder="Nome lavoro"
@@ -151,7 +153,7 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
                     <th className="px-3 py-2"></th>
                     <th className="px-3 py-2">
                       <TextInput
-                      key={`note:${queryParams.note || ""}`}
+                        key={`note:${queryParams.note || ""}`}
                         className="w-full"
                         defaultValue={queryParams.note}
                         placeholder="Note"
@@ -177,23 +179,18 @@ export default function Index({ auth, works, accTotals = null, accQuery = null, 
                           {work.name}
                         </div>
                       </th>
-
                       <td className="px-3 py-2 cursor-pointer" onClick={() => workShow(work)}>
                         {work.contact || work.cell || "-"}
                       </td>
-
                       <td className="px-3 py-2 cursor-pointer" onClick={() => workShow(work)}>
                         {work.email || work.email2 || "-"}
                       </td>
-
                       <td className="px-3 py-2 cursor-pointer" onClick={() => workShow(work)}>
                         {work.piva || work.cod_fiscale || "-"}
                       </td>
-
                       <td className="px-3 py-2 cursor-pointer" onClick={() => workShow(work)}>
                         {work.note || work.note1 || "-"}
                       </td>
-
                       <td className="px-3 py-2 text-nowrap flex items-center gap-2">
                         <Link href={route("work.edit", work.id)} className="font-medium text-blue-600">
                           <PencilSquareIcon className="w-5 h-5 text-blue-500" />
