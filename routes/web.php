@@ -48,6 +48,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     ->whereNumber('detailaccounting')
       ->name('detailaccounting.edit');
 
+      // routes/web.php (nel gruppo con middleware auth)
+Route::get('/accounting/{accounting}/xml', [AccountingController::class, 'downloadXml'])
+    ->name('accounting.xml');
+
+
 // Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
 //     ->whereNumber('detail')
 //     ->name('detailaccounting.update');

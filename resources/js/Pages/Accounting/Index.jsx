@@ -3,7 +3,7 @@ import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import SelectInput from "@/Components/SelectInput";
 import { Head, Link, router } from "@inertiajs/react";
-import { ChevronUpIcon, ChevronDownIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/16/solid";
+import { ChevronUpIcon, ChevronDownIcon, PencilSquareIcon, TrashIcon, EyeIcon } from "@heroicons/react/16/solid";
 import Pagination from "@/Components/Pagination";
 import { ACCOUNTING_STATUS_CLASS_MAP, ACCOUNTING_STATUS_TEXT_MAP } from "@/constants.jsx";
 
@@ -90,28 +90,30 @@ export default function Index({ auth, accountings, queryParams = null, success, 
   };
 
   const headCell = (label, field) => (
-    <th onClick={() => sortChanged(field)} className="whitespace-nowrap">
-      <div className="px-3 py-2 flex items-center justify-between gap-1 cursor-pointer select-none">
-        {label}
-        <div className="flex flex-col leading-none">
-          <ChevronUpIcon
-            className={
-              "w-4 " +
-              (queryParams.sort_field === field && queryParams.sort_direction === "asc" ? "text-black" : "text-gray-400")
-            }
-          />
-        </div>
-        <div className="flex flex-col leading-none -ml-2">
-          <ChevronDownIcon
-            className={
-              "w-4 -mt-1 " +
-              (queryParams.sort_field === field && queryParams.sort_direction === "desc" ? "text-black" : "text-gray-400")
-            }
-          />
-        </div>
-      </div>
-    </th>
-  );
+  <th onClick={() => sortChanged(field)} className="whitespace-nowrap align-middle">
+    <div
+      className="px-3 py-2 grid grid-cols-[1fr,16px] items-center gap-1 cursor-pointer select-none"
+      // 1fr = testo, 16px = colonna fissa per le frecce
+    >
+      <span className="truncate">{label}</span>
+      <span className="flex flex-col items-center leading-none shrink-0">
+        <ChevronUpIcon
+          className={
+            "w-4 h-4 " +
+            (queryParams.sort_field === field && queryParams.sort_direction === "asc" ? "text-black" : "text-gray-400")
+          }
+        />
+        <ChevronDownIcon
+          className={
+            "w-4 h-4 -mt-[2px] " +
+            (queryParams.sort_field === field && queryParams.sort_direction === "desc" ? "text-black" : "text-gray-400")
+          }
+        />
+      </span>
+    </div>
+  </th>
+);
+
 
   return (
     <AuthenticatedLayout
@@ -382,6 +384,9 @@ export default function Index({ auth, accountings, queryParams = null, success, 
 
                         <td className="px-3 py-2 text-nowrap">
                           <div className="flex gap-2">
+                           <Link href={route("accounting.show", { accounting: a.id, ...queryParams })} className="text-emerald-600">
+                             <EyeIcon className="w-5 h-5" />
+                            </Link>
                             <Link href={route("accounting.edit", { accounting: a.id, ...queryParams })} className="text-blue-600">
                               <PencilSquareIcon className="w-5 h-5" />
                             </Link>

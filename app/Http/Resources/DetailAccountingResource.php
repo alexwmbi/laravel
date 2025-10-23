@@ -22,10 +22,11 @@ class DetailAccountingResource extends JsonResource
             "accountingId" => $this->accountingId,
             "stato" => $this->stato,
             "modalitaPagamento" => $this->modalitaPagamento,
+            'tipoPagamento'         => $this->tipoPagamento,
             "dataScadenzaPagamento" => $this->dataScadenzaPagamento,
             "importoPagamento" => $this->importoPagamento,
             "note" => $this->note,
-           
+
 
         ];
     }

@@ -145,110 +145,593 @@ class AccountingController extends Controller
     }
 
     public function store(StoreAccountingRequest $request)
-    {
-        Log::info('🚨 Entra nel metodo store');
+{
+    Log::info('🚨 Entra nel metodo store');
 
-        $files = $request->file('xml_data') ?? [];
-        Log::info("🧪 File ricevuti: " . count($files));
-        $importSuccess = 0;
-        $importErrors = [];
+    $files = $request->file('xml_data') ?? [];
+    Log::info("🧪 File ricevuti: " . count($files));
+    $importSuccess = 0;
+    $importErrors  = [];
 
-        foreach ($files as $file) {
-            $fileName = $file->getClientOriginalName();
-            Log::info("🔁 Inizio elaborazione file: $fileName");
+    foreach ($files as $file) {
+        $fileName = $file->getClientOriginalName();
+        Log::info("🔁 Inizio elaborazione file: $fileName");
 
-            try {
-                $xmlString = file_get_contents($file);
-                $xmlObject = simplexml_load_string($xmlString);
-
-                if ($xmlObject === false) {
-                    throw new \Exception("XML non valido");
-                }
-
-                $json = json_encode($xmlObject);
-                $phpArray = json_decode($json, true);
-
-                // Forza DettaglioPagamento in array se singolo
-                if (
-                    isset($phpArray["FatturaElettronicaBody"]["DatiPagamento"]["DettaglioPagamento"]) &&
-                    isset($phpArray["FatturaElettronicaBody"]["DatiPagamento"]["DettaglioPagamento"]["ModalitaPagamento"])
-                ) {
-                    $phpArray["FatturaElettronicaBody"]["DatiPagamento"]["DettaglioPagamento"] = [
-                        $phpArray["FatturaElettronicaBody"]["DatiPagamento"]["DettaglioPagamento"]
-                    ];
-                }
-
-                $anagrafica = $phpArray["FatturaElettronicaHeader"]["CedentePrestatore"]["DatiAnagrafici"] ?? [];
-
-                $Accounting_array = [
-                    'ProgressivoInvio'         => $phpArray["FatturaElettronicaHeader"]["DatiTrasmissione"]["ProgressivoInvio"] ?? null,
-                    'FormatoTrasmissione'      => $phpArray["FatturaElettronicaHeader"]["DatiTrasmissione"]["FormatoTrasmissione"] ?? null,
-                    'FornitoreIdPaese'         => $phpArray["FatturaElettronicaHeader"]["DatiTrasmissione"]["IdTrasmittente"]["IdPaese"] ?? null,
-                    'FornitoreIdCodice'        => $phpArray["FatturaElettronicaHeader"]["DatiTrasmissione"]["IdTrasmittente"]["IdCodice"] ?? null,
-                    'FornitoreCodiceFiscale'   => $anagrafica["CodiceFiscale"] ?? $anagrafica["IdFiscaleIVA"]["IdCodice"] ?? null,
-                    'FornitoreNome'            => $anagrafica["Anagrafica"]["Denominazione"] ?? null,
-                    'TipoDocumento'            => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["TipoDocumento"] ?? null,
-                    'Numero'                   => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["Numero"] ?? null,
-                    'Data'                     => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["Data"] ?? null,
-                    'ImportoTotaleDocumento'   => $phpArray["FatturaElettronicaBody"]["DatiGenerali"]["DatiGeneraliDocumento"]["ImportoTotaleDocumento"] ?? null,
-                    'Stato'                    => 'aperta',
-                ];
-
-                // ===== segno coerente con TipoDocumento =====
-                $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
-                $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
-                $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
-
-                // logging campi vuoti (facoltativo)
-                $campiVuoti = [];
-                foreach ($Accounting_array as $k => $v) {
-                    if (is_null($v) || (is_string($v) && trim($v) === '')) {
-                        $campiVuoti[] = $k;
-                    }
-                }
-                if (!empty($campiVuoti)) {
-                    Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
-                }
-
-                if (empty($Accounting_array['ProgressivoInvio'])) {
-                    throw new \Exception("Campo obbligatorio mancante: ProgressivoInvio");
-                }
-
-                $savedAccounting = Accounting::create($Accounting_array);
-
-                foreach ($phpArray["FatturaElettronicaBody"]["DatiPagamento"]["DettaglioPagamento"] ?? [] as $pagamento) {
-                    DB::table('detail_accountings')->insert([
-                        'accountingId'          => $savedAccounting->id,
-                        'modalitaPagamento'     => $pagamento["ModalitaPagamento"] ?? null,
-                        'dataScadenzaPagamento' => $pagamento["DataScadenzaPagamento"] ?? null,
-                        'importoPagamento'      => $pagamento["ImportoPagamento"] ?? null,
-                        'stato'                 => 'aperta',
-                        'tipoPagamento'         => null,
-                        'note'                  => null,
-                    ]);
-                }
-
-                Log::info("✅ [$fileName] Importazione riuscita.");
-                $importSuccess++;
-            } catch (\Throwable $e) {
-                Log::error("❌ [$fileName] Errore: " . $e->getMessage());
-                $importErrors[] = [
-                    'file'  => $fileName,
-                    'error' => $e->getMessage()
-                ];
+        try {
+            $xmlString = file_get_contents($file);
+            $xmlObject = simplexml_load_string($xmlString);
+            if ($xmlObject === false) {
+                throw new \Exception("XML non valido");
             }
-        }
 
-        return redirect()
-            ->route('accounting.index')
-            ->with('success', "$importSuccess fatture importate.")
-            ->with('import_errors', $importErrors);
+            // Array PHP dal SimpleXML
+            $arr = json_decode(json_encode($xmlObject), true);
+
+            // ==== Helpers "elastici" ====
+            $first = function ($val) {
+                return (is_array($val) && array_key_exists(0, $val)) ? $val[0] : $val;
+            };
+            $asArray = function ($val) {
+                if ($val === null) return [];
+                if (is_array($val) && array_key_exists(0, $val)) return $val;
+                return [$val];
+            };
+            // Parsing numeri: supporta "1.234,56" e "1234.56" senza rompere i decimali
+            $toFloat = function ($v) {
+                if ($v === null || $v === '') return null;
+                $s = trim((string)$v);
+                if (str_contains($s, '.') && str_contains($s, ',')) {
+                    // Es: 1.234,56 (it) -> 1234.56
+                    $s = str_replace('.', '', $s);
+                    $s = str_replace(',', '.', $s);
+                } elseif (str_contains($s, ',') && !str_contains($s, '.')) {
+                    // Es: 1234,56 -> 1234.56
+                    $s = str_replace(',', '.', $s);
+                }
+                // Se ha solo '.', è già formato XML standard
+                return is_numeric($s) ? (float)$s : null;
+            };
+
+            // ==== Header/Body con fallback sicuri ====
+            $header = $arr['FatturaElettronicaHeader'] ?? [];
+            $bodies = $asArray($arr['FatturaElettronicaBody'] ?? []);
+            $body   = $first($bodies);
+            $body   = is_array($body) ? $body : [];
+
+            // ---- Pagamenti (sempre array) ----
+            $dpAll  = $asArray($body['DatiPagamento'] ?? []);
+            $dp     = $first($dpAll);
+            $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
+
+            // ---- Cedente/Prestatore + fallback ----
+            $ced  = $header['CedentePrestatore'] ?? [];
+            $da   = $ced['DatiAnagrafici'] ?? [];
+            $ana  = $da['Anagrafica'] ?? [];
+            $sede = $ced['Sede'] ?? ($ced['StabileOrganizzazione'] ?? []);
+            $cont = $ced['Contatti'] ?? [];
+            $rea  = $ced['IscrizioneREA'] ?? [];
+
+            $den  = isset($ana['Denominazione']) ? trim((string)$ana['Denominazione']) : '';
+            $nome = isset($ana['Nome']) ? trim((string)$ana['Nome']) : '';
+            $cogn = isset($ana['Cognome']) ? trim((string)$ana['Cognome']) : '';
+            $fornitoreDisplay = $den !== '' ? $den : (trim($nome.' '.$cogn) ?: null);
+
+            // Se IdTrasmittente mancano, prendo IdFiscale del cedente
+            $idPaese  = $header['DatiTrasmissione']['IdTrasmittente']['IdPaese']  ?? ($da['IdFiscaleIVA']['IdPaese']  ?? null);
+            $idCodice = $header['DatiTrasmissione']['IdTrasmittente']['IdCodice'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null);
+
+            // ---- Documento ----
+            $dgd = $body['DatiGenerali']['DatiGeneraliDocumento'] ?? [];
+
+            // ---- Dati Beni/Servizi (prima riga + riepilogo) ----
+            $dbs   = $body['DatiBeniServizi'] ?? [];
+            $linee = $asArray($dbs['DettaglioLinee'] ?? []);
+            $firstLine = $first($linee) ?? null;
+
+            $riep = $asArray($dbs['DatiRiepilogo'] ?? []);
+            $sumImponibile = 0.0;
+            $sumImposta    = 0.0;
+            $sumSpeseAcc   = 0.0;
+            $aliquote      = [];
+            $riepEsig      = null;
+            foreach ($riep as $r) {
+                $sumImponibile += (float)($r['ImponibileImporto'] ?? 0);
+                $sumImposta    += (float)($r['Imposta'] ?? 0);
+                $sumSpeseAcc   += (float)($r['SpeseAccessorie'] ?? 0);
+                if (isset($r['AliquotaIVA'])) $aliquote[] = (string)$r['AliquotaIVA'];
+                if (!$riepEsig && !empty($r['EsigibilitaIVA'])) $riepEsig = $r['EsigibilitaIVA'];
+            }
+            $aliquotaUniforme = (count(array_unique($aliquote)) === 1) ? ($aliquote[0] ?? null) : null;
+
+            // ---- Cerca riga "bollo" (descrizione) ----
+            $bollo = null;
+            foreach ($linee as $ln) {
+                $descr = isset($ln['Descrizione']) ? mb_strtolower(trim((string)$ln['Descrizione'])) : '';
+                if ($descr !== '' && preg_match('/\bbollo\b|marca\s+da\s+bollo|imposta\s+di\s+bollo|rimborso\s+spese\s+di\s+bollo/u', $descr)) {
+                    $bollo = $ln; break;
+                }
+            }
+
+            // ---- Codici articolo (se esistono) ----
+            $codArtTipo1 = $codArtVal1 = $codArtTipo2 = $codArtVal2 = null;
+            if (is_array($firstLine) && !empty($firstLine['CodiceArticolo'])) {
+                $codes = $firstLine['CodiceArticolo'];
+                if (isset($codes['CodiceTipo']) || isset($codes['CodiceValore'])) {
+                    $codes = [$codes]; // wrap singolo
+                }
+                $codes = array_values($codes);
+                if (isset($codes[0]) && is_array($codes[0])) {
+                    $codArtTipo1 = $codes[0]['CodiceTipo']   ?? null;
+                    $codArtVal1  = $codes[0]['CodiceValore'] ?? null;
+                }
+                if (isset($codes[1]) && is_array($codes[1])) {
+                    $codArtTipo2 = $codes[1]['CodiceTipo']   ?? null;
+                    $codArtVal2  = $codes[1]['CodiceValore'] ?? null;
+                }
+            }
+
+            // ==== Build array insert (retro-compat + extra sicuri) ====
+            $Accounting_array = [
+                // Trasmissione (vecchio import li popolava)
+                'ProgressivoInvio'    => $header['DatiTrasmissione']['ProgressivoInvio'] ?? null,
+                'FormatoTrasmissione' => $header['DatiTrasmissione']['FormatoTrasmissione'] ?? null,
+                'FornitoreIdPaese'    => $idPaese,
+                'FornitoreIdCodice'   => $idCodice,
+
+                // Cedente/Prestatore (vecchio import: CF, Denominazione)
+                'FornitoreCodiceFiscale' => $da['CodiceFiscale'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null),
+                'FornitoreNome'          => $fornitoreDisplay,
+
+                // Extra “storici” (se presenti nell’XML: restano opzionali)
+                'FornitoreRegimeFiscale' => $da['RegimeFiscale'] ?? null,
+                'FornitoreSedeIndirizzo' => $sede['Indirizzo'] ?? null,
+                'FornitoreSedeCAP'       => $sede['CAP'] ?? null,
+                'FornitoreSedeComune'    => $sede['Comune'] ?? null,
+                'FornitoreSedeProvincia' => $sede['Provincia'] ?? null,
+                'FornitoreSedeNazione'   => $sede['Nazione'] ?? null,
+                'FornitoreTelefono'      => $cont['Telefono'] ?? null,
+                'FornitoreEmail'         => $cont['Email'] ?? null,
+                'UfficioRea'             => $rea['Ufficio'] ?? null,
+                'NumeroRea'              => $rea['NumeroREA'] ?? null,
+                'CapitaleSocialeRea'     => $rea['CapitaleSociale'] ?? null,
+                'SocioUnicoRea'          => $rea['SocioUnico'] ?? null,
+                'StatoLiquidazioneRea'   => $rea['StatoLiquidazione'] ?? null,
+
+                // Documento (vecchio import li popolava)
+                'TipoDocumento'            => $dgd['TipoDocumento'] ?? null,
+                'Divisa'                   => $dgd['Divisa'] ?? null,
+                'Data'                     => $dgd['Data'] ?? null,
+                'Numero'                   => $dgd['Numero'] ?? null,
+                'ImportoTotaleDocumento'   => $dgd['ImportoTotaleDocumento'] ?? null,
+
+                // Prima riga bene/servizio (storico, opzionale)
+                'CodiceArticoloTipo1'   => $codArtTipo1,
+                'CodiceArticoloValore1' => $codArtVal1,
+                'CodiceArticoloTipo2'   => $codArtTipo2,
+                'CodiceArticoloValore2' => $codArtVal2,
+                'Descrizione'           => $firstLine['Descrizione']    ?? null,
+                'Quantita'              => $firstLine['Quantita']       ?? null,
+                'UnitaMisura'           => $firstLine['UnitaMisura']    ?? null,
+                'PrezzoUnitario'        => $firstLine['PrezzoUnitario'] ?? null,
+                'PrezzoTotale'          => $firstLine['PrezzoTotale']   ?? null,
+                'AliquotaIVA'           => $firstLine['AliquotaIVA']    ?? null,
+
+                // Riepilogo (storico, opzionale)
+                'RiepilogoAliquotaIVA'       => $aliquotaUniforme,
+                'RiepilogoSpeseAccessorie'   => (string)$sumSpeseAcc,
+                'RiepilogoImponibileImporto' => (string)$sumImponibile,
+                'RiepilogoImposta'           => (string)$sumImposta,
+                'RiepilogoEsigibilitaIVA'    => $riepEsig,
+
+                // Pagamenti header (storico, opzionale)
+                'CondizioniPagamento'      => $dp['CondizioniPagamento'] ?? null,
+                'ModalitaPagamento1'       => $detPag[0]['ModalitaPagamento']     ?? null,
+                'DataScadenzaPagamento1'   => $detPag[0]['DataScadenzaPagamento'] ?? null,
+                'ImportoPagamento1'        => $detPag[0]['ImportoPagamento']      ?? null,
+                'ModalitaPagamento2'       => $detPag[1]['ModalitaPagamento']     ?? null,
+                'DataScadenzaPagamento2'   => $detPag[1]['DataScadenzaPagamento'] ?? null,
+                'ImportoPagamento2'        => $detPag[1]['ImportoPagamento']      ?? null,
+
+                // Tracking
+                'Stato'         => 'aperta',   // (vecchio era 'Aperta', il tuo cast gestisce la normalizzazione)
+                'xml_originale' => $xmlString,
+                'imported_at'   => now(),
+            ];
+
+            // --- Riga bollo (se presente) -> campi migration ---
+            if ($bollo) {
+                $Accounting_array['BolloLineaNumero']      = isset($bollo['NumeroLinea']) ? (int)$bollo['NumeroLinea'] : null;
+                $Accounting_array['BolloLineaDescrizione'] = $bollo['Descrizione'] ?? null;
+                $Accounting_array['BolloPrezzoUnitario']   = $toFloat($bollo['PrezzoUnitario'] ?? null);
+                $Accounting_array['BolloPrezzoTotale']     = $toFloat($bollo['PrezzoTotale'] ?? null);
+                $Accounting_array['BolloAliquotaIVA']      = $toFloat($bollo['AliquotaIVA'] ?? null);
+                $Accounting_array['BolloNatura']           = $bollo['Natura'] ?? null;
+
+                Log::info("🧾 [$fileName] Riga bollo rilevata", [
+                    'Numero'      => $Accounting_array['BolloLineaNumero'],
+                    'Descrizione' => $Accounting_array['BolloLineaDescrizione'],
+                    'PrezzoTotale'=> $Accounting_array['BolloPrezzoTotale'],
+                    'AliquotaIVA' => $Accounting_array['BolloAliquotaIVA'],
+                    'Natura'      => $Accounting_array['BolloNatura'],
+                ]);
+            }
+
+            // --- Segno coerente su TD04 (note di credito) ---
+            $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
+            $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
+            $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
+
+            // --- Obbligatorio minimo: ProgressivoInvio ---
+            if (empty($Accounting_array['ProgressivoInvio'])) {
+                throw new \Exception("Campo obbligatorio mancante: ProgressivoInvio");
+            }
+
+            // --- Progressivo auto (MAX + 1) se assente ---
+            if (empty($Accounting_array['Progressivo'])) {
+                $max = Accounting::whereNotNull('Progressivo')
+                    ->selectRaw('MAX(CAST(Progressivo AS UNSIGNED)) as m')
+                    ->value('m');
+                $Accounting_array['Progressivo'] = (string)((int)($max ?? 0) + 1);
+            }
+
+            // --- Warning campi vuoti ---
+            $campiVuoti = [];
+            foreach ($Accounting_array as $k => $v) {
+                if ($v === null || (is_string($v) && trim($v) === '')) {
+                    $campiVuoti[] = $k;
+                }
+            }
+            if (!empty($campiVuoti)) {
+                Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
+            }
+
+            // --- Salva testata ---
+            $savedAccounting = Accounting::create($Accounting_array);
+
+            // --- Salva righe pagamento (retro-compat: stessi 3 campi + stato) ---
+            foreach ($detPag as $pagamento) {
+                $mp = $pagamento['ModalitaPagamento'] ?? null;
+
+                // mapping MP -> dominio interno (opzionale, non rompe retro-compat)
+                $tipo = match ($mp) {
+                    'MP05' => 'bonifico',
+                    'MP12', 'MP13' => 'riba',
+                    'MP01' => 'contanti',
+                    'MP02', 'MP03' => 'assegno',
+                    default => null,
+                };
+
+                DB::table('detail_accountings')->insert([
+                    'accountingId'          => $savedAccounting->id,
+                    'modalitaPagamento'     => $mp,
+                    'dataScadenzaPagamento' => $pagamento['DataScadenzaPagamento'] ?? null,
+                    'importoPagamento'      => isset($pagamento['ImportoPagamento']) ? (float)$pagamento['ImportoPagamento'] : null,
+                    'stato'                 => 'aperta',
+                    'tipoPagamento'         => $tipo,
+                    'note'                  => null,
+                ]);
+            }
+
+            Log::info("✅ [$fileName] Importazione riuscita.");
+            $importSuccess++;
+
+        } catch (\Throwable $e) {
+            Log::error("❌ [$fileName] Errore: " . $e->getMessage());
+            $importErrors[] = ['file' => $fileName, 'error' => $e->getMessage()];
+        }
     }
+
+    return redirect()
+        ->route('accounting.index')
+        ->with('success', "$importSuccess fatture importate.")
+        ->with('import_errors', $importErrors);
+}
+
+
+//    public function store(StoreAccountingRequest $request)
+// {
+//     Log::info('🚨 Entra nel metodo store');
+
+//     $files = $request->file('xml_data') ?? [];
+//     Log::info("🧪 File ricevuti: " . count($files));
+//     $importSuccess = 0;
+//     $importErrors  = [];
+
+//     foreach ($files as $file) {
+//         $fileName = $file->getClientOriginalName();
+//         Log::info("🔁 Inizio elaborazione file: $fileName");
+
+//         try {
+//             $xmlString = file_get_contents($file);
+//             $xmlObject = simplexml_load_string($xmlString);
+//             if ($xmlObject === false) {
+//                 throw new \Exception("XML non valido");
+//             }
+
+//             // Array PHP dal SimpleXML
+//             $arr = json_decode(json_encode($xmlObject), true);
+
+//             // ==== Helpers "elastici" ====
+//             $first = function ($val) {
+//                 return (is_array($val) && array_key_exists(0, $val)) ? $val[0] : $val;
+//             };
+//             $asArray = function ($val) {
+//                 if ($val === null) return [];
+//                 if (is_array($val) && array_key_exists(0, $val)) return $val;
+//                 return [$val];
+//             };
+//             // ⚠️ Fix: non rimuovere il '.' se è il separatore decimale dell'XML
+//             $toFloat = function ($v) {
+//                 if ($v === null || $v === '') return null;
+//                 $s = trim((string)$v);
+//                 // se contiene sia '.' che ',', assumo formattazione italiana "1.234,56"
+//                 if (str_contains($s, '.') && str_contains($s, ',')) {
+//                     $s = str_replace('.', '', $s);   // rimuovi separatore migliaia
+//                     $s = str_replace(',', '.', $s);  // virgola -> punto
+//                 } elseif (str_contains($s, ',') && !str_contains($s, '.')) {
+//                     // "1234,56" -> "1234.56"
+//                     $s = str_replace(',', '.', $s);
+//                 }
+//                 // se ha solo '.', è già OK (XML tipicamente usa '.')
+//                 return is_numeric($s) ? (float)$s : null;
+//             };
+
+//             // ==== Header / Body ====
+//             $header = $arr['FatturaElettronicaHeader'] ?? [];
+//             $bodies = $asArray($arr['FatturaElettronicaBody'] ?? []);
+//             $body   = $first($bodies);
+
+//             // ---- Dati pagamento (array sempre) ----
+//             $dpAll  = $asArray($body['DatiPagamento'] ?? []);
+//             $dp     = $first($dpAll);
+//             $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
+
+//             // ---- Cedente/Prestatore (con fallback) ----
+//             $ced  = $header['CedentePrestatore'] ?? [];
+//             $da   = $ced['DatiAnagrafici'] ?? [];
+//             $ana  = $da['Anagrafica'] ?? [];
+//             $sede = $ced['Sede'] ?? ($ced['StabileOrganizzazione'] ?? []);
+//             $cont = $ced['Contatti'] ?? [];
+//             $rea  = $ced['IscrizioneREA'] ?? [];
+
+//             $den  = isset($ana['Denominazione']) ? trim((string)$ana['Denominazione']) : '';
+//             $nome = isset($ana['Nome']) ? trim((string)$ana['Nome']) : '';
+//             $cogn = isset($ana['Cognome']) ? trim((string)$ana['Cognome']) : '';
+//             $fornitoreDisplay = $den !== '' ? $den : (trim($nome.' '.$cogn) ?: null);
+
+//             // Se IdTrasmittente assenti, prendo dall'IdFiscale del cedente
+//             $idPaese  = $header['DatiTrasmissione']['IdTrasmittente']['IdPaese']  ?? ($da['IdFiscaleIVA']['IdPaese']  ?? null);
+//             $idCodice = $header['DatiTrasmissione']['IdTrasmittente']['IdCodice'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null);
+
+//             // ---- Documento ----
+//             $dgd = $body['DatiGenerali']['DatiGeneraliDocumento'] ?? [];
+
+//             // ---- Dati Beni/Servizi (prima riga + riepilogo) ----
+//             $dbs   = $body['DatiBeniServizi'] ?? [];
+//             $linee = $asArray($dbs['DettaglioLinee'] ?? []);
+//             $firstLine = $first($linee) ?? null;
+
+//             $riep = $asArray($dbs['DatiRiepilogo'] ?? []);
+//             $sumImponibile = 0.0;
+//             $sumImposta    = 0.0;
+//             $sumSpeseAcc   = 0.0;
+//             $aliquote      = [];
+//             $riepEsig      = null;
+//             foreach ($riep as $r) {
+//                 $sumImponibile += (float)($r['ImponibileImporto'] ?? 0);
+//                 $sumImposta    += (float)($r['Imposta'] ?? 0);
+//                 $sumSpeseAcc   += (float)($r['SpeseAccessorie'] ?? 0);
+//                 if (isset($r['AliquotaIVA'])) $aliquote[] = (string)$r['AliquotaIVA'];
+//                 if (!$riepEsig && !empty($r['EsigibilitaIVA'])) $riepEsig = $r['EsigibilitaIVA'];
+//             }
+//             $aliquotaUniforme = (count(array_unique($aliquote)) === 1) ? ($aliquote[0] ?? null) : null;
+
+//             // ---- Riga bollo (match su descrizione) ----
+//             $bollo = null;
+//             foreach ($linee as $ln) {
+//                 $descr = isset($ln['Descrizione']) ? mb_strtolower(trim((string)$ln['Descrizione'])) : '';
+//                 if ($descr !== '' && preg_match('/\bbollo\b|marca\s+da\s+bollo|imposta\s+di\s+bollo|rimborso\s+spese\s+di\s+bollo/u', $descr)) {
+//                     $bollo = $ln; break;
+//                 }
+//             }
+
+//             // ---- CodiceArticolo (sicuro anche se assente) ----
+//             $codArtTipo1 = $codArtVal1 = $codArtTipo2 = $codArtVal2 = null;
+//             if (is_array($firstLine) && !empty($firstLine['CodiceArticolo'])) {
+//                 $codes = $firstLine['CodiceArticolo'];
+//                 // se è assoc -> wrap
+//                 if (isset($codes['CodiceTipo']) || isset($codes['CodiceValore'])) {
+//                     $codes = [$codes];
+//                 }
+//                 $codes = array_values($codes);
+//                 if (isset($codes[0]) && is_array($codes[0])) {
+//                     $codArtTipo1 = $codes[0]['CodiceTipo']   ?? null;
+//                     $codArtVal1  = $codes[0]['CodiceValore'] ?? null;
+//                 }
+//                 if (isset($codes[1]) && is_array($codes[1])) {
+//                     $codArtTipo2 = $codes[1]['CodiceTipo']   ?? null;
+//                     $codArtVal2  = $codes[1]['CodiceValore'] ?? null;
+//                 }
+//             }
+
+//             // ==== Build array insert (retro-compat completo) ====
+//             $Accounting_array = [
+//                 // Trasmissione
+//                 'ProgressivoInvio'    => $header['DatiTrasmissione']['ProgressivoInvio'] ?? null,
+//                 'FormatoTrasmissione' => $header['DatiTrasmissione']['FormatoTrasmissione'] ?? null,
+//                 'FornitoreIdPaese'    => $idPaese,
+//                 'FornitoreIdCodice'   => $idCodice,
+
+//                 // Cedente/Prestatore
+//                 'FornitoreCodiceFiscale' => $da['CodiceFiscale'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null),
+//                 'FornitoreNome'          => $fornitoreDisplay,
+//                 'FornitoreRegimeFiscale' => $da['RegimeFiscale'] ?? null,
+
+//                 'FornitoreSedeIndirizzo' => $sede['Indirizzo'] ?? null,
+//                 'FornitoreSedeCAP'       => $sede['CAP'] ?? null,
+//                 'FornitoreSedeComune'    => $sede['Comune'] ?? null,
+//                 'FornitoreSedeProvincia' => $sede['Provincia'] ?? null,
+//                 'FornitoreSedeNazione'   => $sede['Nazione'] ?? null,
+
+//                 'FornitoreTelefono'      => $cont['Telefono'] ?? null,
+//                 'FornitoreEmail'         => $cont['Email'] ?? null,
+
+//                 // REA
+//                 'UfficioRea'             => $rea['Ufficio'] ?? null,
+//                 'NumeroRea'              => $rea['NumeroREA'] ?? null,
+//                 'CapitaleSocialeRea'     => $rea['CapitaleSociale'] ?? null,
+//                 'SocioUnicoRea'          => $rea['SocioUnico'] ?? null,
+//                 'StatoLiquidazioneRea'   => $rea['StatoLiquidazione'] ?? null,
+
+//                 // Documento
+//                 'TipoDocumento'            => $dgd['TipoDocumento'] ?? null,
+//                 'Divisa'                   => $dgd['Divisa'] ?? null,
+//                 'Data'                     => $dgd['Data'] ?? null,
+//                 'Numero'                   => $dgd['Numero'] ?? null,
+//                 'ImportoTotaleDocumento'   => $dgd['ImportoTotaleDocumento'] ?? null,
+
+//                 // Prima riga (storici)
+//                 'CodiceArticoloTipo1'   => $codArtTipo1,
+//                 'CodiceArticoloValore1' => $codArtVal1,
+//                 'CodiceArticoloTipo2'   => $codArtTipo2,
+//                 'CodiceArticoloValore2' => $codArtVal2,
+//                 'Descrizione'           => $firstLine['Descrizione']    ?? null,
+//                 'Quantita'              => $firstLine['Quantita']       ?? null,
+//                 'UnitaMisura'           => $firstLine['UnitaMisura']    ?? null,
+//                 'PrezzoUnitario'        => $firstLine['PrezzoUnitario'] ?? null,
+//                 'PrezzoTotale'          => $firstLine['PrezzoTotale']   ?? null,
+//                 'AliquotaIVA'           => $firstLine['AliquotaIVA']    ?? null,
+
+//                 // Riepilogo (storici)
+//                 'RiepilogoAliquotaIVA'       => $aliquotaUniforme,
+//                 'RiepilogoSpeseAccessorie'   => (string)$sumSpeseAcc,
+//                 'RiepilogoImponibileImporto' => (string)$sumImponibile,
+//                 'RiepilogoImposta'           => (string)$sumImposta,
+//                 'RiepilogoEsigibilitaIVA'    => $riepEsig,
+
+//                 // Pagamenti header (storici)
+//                 'CondizioniPagamento'      => $dp['CondizioniPagamento'] ?? null,
+//                 'ModalitaPagamento1'       => $detPag[0]['ModalitaPagamento']     ?? null,
+//                 'DataScadenzaPagamento1'   => $detPag[0]['DataScadenzaPagamento'] ?? null,
+//                 'ImportoPagamento1'        => $detPag[0]['ImportoPagamento']      ?? null,
+//                 'ModalitaPagamento2'       => $detPag[1]['ModalitaPagamento']     ?? null,
+//                 'DataScadenzaPagamento2'   => $detPag[1]['DataScadenzaPagamento'] ?? null,
+//                 'ImportoPagamento2'        => $detPag[1]['ImportoPagamento']      ?? null,
+
+//                 // Tracking
+//                 'Stato'         => 'aperta',
+//                 'xml_originale' => $xmlString,
+//                 'imported_at'   => now(),
+//             ];
+
+//             // --- Riga bollo -> campi migration ---
+//             if ($bollo) {
+//                 $Accounting_array['BolloLineaNumero']      = isset($bollo['NumeroLinea']) ? (int)$bollo['NumeroLinea'] : null;
+//                 $Accounting_array['BolloLineaDescrizione'] = $bollo['Descrizione'] ?? null;
+//                 $Accounting_array['BolloPrezzoUnitario']   = $toFloat($bollo['PrezzoUnitario'] ?? null);
+//                 $Accounting_array['BolloPrezzoTotale']     = $toFloat($bollo['PrezzoTotale'] ?? null);
+//                 $Accounting_array['BolloAliquotaIVA']      = $toFloat($bollo['AliquotaIVA'] ?? null);
+//                 $Accounting_array['BolloNatura']           = $bollo['Natura'] ?? null;
+
+//                 Log::info("🧾 [$fileName] Riga bollo rilevata", [
+//                     'Numero'      => $Accounting_array['BolloLineaNumero'],
+//                     'Descrizione' => $Accounting_array['BolloLineaDescrizione'],
+//                     'PrezzoTotale'=> $Accounting_array['BolloPrezzoTotale'],
+//                     'AliquotaIVA' => $Accounting_array['BolloAliquotaIVA'],
+//                     'Natura'      => $Accounting_array['BolloNatura'],
+//                 ]);
+//             }
+
+//             // --- Segno coerente su TD04 ---
+//             $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
+//             $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
+//             $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
+
+//             // --- Obbligatorio minimo ---
+//             if (empty($Accounting_array['ProgressivoInvio'])) {
+//                 throw new \Exception("Campo obbligatorio mancante: ProgressivoInvio");
+//             }
+
+//             // --- Progressivo auto (MAX + 1) se assente ---
+//             if (empty($Accounting_array['Progressivo'])) {
+//                 $max = Accounting::whereNotNull('Progressivo')
+//                     ->selectRaw('MAX(CAST(Progressivo AS UNSIGNED)) as m')
+//                     ->value('m');
+//                 $Accounting_array['Progressivo'] = (string)((int)($max ?? 0) + 1);
+//             }
+
+//             // --- Log campi mancanti/empty (solo warning) ---
+//             $campiVuoti = [];
+//             foreach ($Accounting_array as $k => $v) {
+//                 if ($v === null || (is_string($v) && trim($v) === '')) {
+//                     $campiVuoti[] = $k;
+//                 }
+//             }
+//             if (!empty($campiVuoti)) {
+//                 Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
+//             }
+
+//             // --- Salva testata ---
+//             $savedAccounting = Accounting::create($Accounting_array);
+
+//             // --- Dettaglio pagamenti ---
+//             foreach ($detPag as $pagamento) {
+//                 $mp = $pagamento['ModalitaPagamento'] ?? null;
+//                 $tipo = match ($mp) {
+//                     'MP05' => 'bonifico',
+//                     'MP12', 'MP13' => 'riba',
+//                     'MP01' => 'contanti',
+//                     'MP02', 'MP03' => 'assegno',
+//                     default => null,
+//                 };
+
+//                 DB::table('detail_accountings')->insert([
+//                     'accountingId'          => $savedAccounting->id,
+//                     'modalitaPagamento'     => $mp,
+//                     'dataScadenzaPagamento' => $pagamento['DataScadenzaPagamento'] ?? null,
+//                     'importoPagamento'      => isset($pagamento['ImportoPagamento']) ? (float)$pagamento['ImportoPagamento'] : null,
+//                     'stato'                 => 'aperta',
+//                     'tipoPagamento'         => $tipo,
+//                     'note'                  => null,
+//                 ]);
+//             }
+
+//             Log::info("✅ [$fileName] Importazione riuscita.");
+//             $importSuccess++;
+
+//         } catch (\Throwable $e) {
+//             Log::error("❌ [$fileName] Errore: " . $e->getMessage());
+//             $importErrors[] = ['file' => $fileName, 'error' => $e->getMessage()];
+//         }
+//     }
+
+//     return redirect()
+//         ->route('accounting.index')
+//         ->with('success', "$importSuccess fatture importate.")
+//         ->with('import_errors', $importErrors);
+// }
+
+
+
+    // App\Http\Controllers\AccountingController.php
 
     public function show(Accounting $accounting)
     {
-        return inertia("Accounting/Import");
+        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+
+        return inertia('Accounting/Show', [
+            // passo direttamente il Model per avere *tutti* i campi
+            'accounting' => $accounting,
+            'backQuery'  => request()->query() ?: null,
+        ]);
     }
+
+
+
+    /*  public function show(Accounting $accounting)
+    {
+        return inertia("Accounting/Import");
+    } */
 
     public function edit(Accounting $accounting)
     {
@@ -395,5 +878,28 @@ class AccountingController extends Controller
             'backQuery'     => request()->query() ?: null,
             'success'       => session('success'),
         ]);
+    }
+
+
+    public function downloadXml(Accounting $accounting)
+    {
+        abort_unless($accounting->xml_originale, 404, 'XML non disponibile');
+
+        $filename = 'fattura_' . $accounting->id . '.xml';
+
+        return response()->streamDownload(
+            function () use ($accounting) {
+                echo $accounting->xml_originale;
+            },
+            $filename,
+            [
+                'Content-Type'              => 'application/xml; charset=UTF-8',
+                'Content-Disposition'       => 'attachment; filename="' . $filename . '"',
+                'X-Content-Type-Options'    => 'nosniff',
+                'Cache-Control'             => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma'                    => 'no-cache',
+                'Expires'                   => '0',
+            ]
+        );
     }
 }

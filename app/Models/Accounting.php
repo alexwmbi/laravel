@@ -62,6 +62,15 @@ class Accounting extends Model
         'DataScadenzaPagamento2',
         'ImportoPagamento2',
         'Stato',
+        'xml_originale',
+        'imported_at',
+        'BolloLineaNumero',
+        'BolloLineaDescrizione',
+        'BolloPrezzoUnitario',
+        'BolloPrezzoTotale',
+        'BolloAliquotaIVA',
+        'BolloNatura',
+
     ];
 
     /**
