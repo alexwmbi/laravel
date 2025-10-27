@@ -239,6 +239,14 @@ class AccountingController extends Controller
                 // ---- Documento ----
                 $dgd = $body['DatiGenerali']['DatiGeneraliDocumento'] ?? [];
 
+                $rawCausale = $dgd['Causale'] ?? null;
+                if (is_array($rawCausale)) {
+                    // Se più <Causale>, uniscile su più righe
+                    $rawCausale = implode("\n", array_map(fn($s) => is_scalar($s) ? (string)$s : json_encode($s), $rawCausale));
+                } elseif (!is_null($rawCausale) && !is_scalar($rawCausale)) {
+                    $rawCausale = json_encode($rawCausale);
+                }
+
                 // ---- Dati Beni/Servizi (prima riga + riepilogo) ----
                 $dbs   = $body['DatiBeniServizi'] ?? [];
                 $linee = $asArray($dbs['DettaglioLinee'] ?? []);
@@ -353,6 +361,10 @@ class AccountingController extends Controller
                     'Stato'         => 'aperta',   // (vecchio era 'Aperta', il tuo cast gestisce la normalizzazione)
                     'xml_originale' => $xmlString,
                     'imported_at'   => now(),
+
+                    //Note
+                    'Note'          => $rawCausale ?: null,
+
                 ];
 
                 // --- Riga bollo (se presente) -> campi migration ---
@@ -815,6 +827,7 @@ class AccountingController extends Controller
             'ImportoTotaleDocumento'   => ['sometimes', 'nullable', 'numeric'],
             'TipoDocumento'            => ['sometimes', 'required', 'in:TD01,TD04'],
             'Stato'                    => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
+             'Note'                     => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
         // Tipo effettivo (nuovo o esistente) per capire il segno

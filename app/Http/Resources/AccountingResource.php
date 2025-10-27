@@ -25,7 +25,8 @@ class AccountingResource extends JsonResource
         'Data'                   => $this->Data,
         'ImportoTotaleDocumento' => $this->ImportoTotaleDocumento,
         'Stato'                  => $this->Stato,
-        'TipoDocumento'          => $this->TipoDocumento,   // ⬅️ importante
+        'TipoDocumento'          => $this->TipoDocumento,
+         'Note'                   => $this->Note,
         'detail_accounting'      => DetailAccountingResource::collection($this->whenLoaded('detailAccounting')),
     ];
     }

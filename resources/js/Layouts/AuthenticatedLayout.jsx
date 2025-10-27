@@ -70,6 +70,12 @@ export default function AuthenticatedLayout({ user, header, children }) {
                 >
                   Chiamata
                 </NavLink>
+                <NavLink
+                  href={route("logs.index")}
+                  active={route().current("logs.*")}
+                >
+                  Logs
+                </NavLink>
               </div>
             </div>
 

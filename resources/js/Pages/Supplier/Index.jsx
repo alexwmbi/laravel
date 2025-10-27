@@ -116,7 +116,7 @@ export default function Index({
                     <th className="px-3 py-2">CONTATTI</th>
                     <th className="px-3 py-2">EMAIL</th>
                     <th className="px-3 py-2">PIVA</th>
-                    <th className="px-3 py-2">CODICE</th>
+                    {/* <th className="px-3 py-2">CODICE</th> */}
                     <th className="px-3 py-2">AZIONI</th>
                   </tr>
                 </thead>
@@ -182,12 +182,12 @@ export default function Index({
                       >
                         {supplier.pivacf}
                       </td>
-                      <td
+                      {/* <td
                         className="px-3 py-2"
                         onClick={(e) => supplierShow(supplier)}
                       >
                         {supplier.codcon}
-                      </td>
+                      </td> */}
 
                       <td className="px-3 py-2 text-nowrap flex">
                         <Link

@@ -15,6 +15,8 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkController;
 use App\Http\Controllers\WorkerController;
+use App\Http\Controllers\System\LogController;
+
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +127,14 @@ Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDe
 
     // URL SDI
     Route::get('/work/invoiceXml/{work}', [WorkController::class, 'invoiceXml'])->name('work.invoiceXml');
+
+     Route::prefix('system/logs')->name('logs.')->group(function () {
+        Route::get('/',         [LogController::class, 'index'])->name('index');      // pagina Inertia
+        Route::get('/content',  [LogController::class, 'content'])->name('content');  // polling JSON
+        Route::post('/clear',   [LogController::class, 'clear'])->name('clear');      // svuota file
+        Route::get('/download', [LogController::class, 'download'])->name('download');// download file
+    });
+
 });
 
 Route::middleware('auth')->group(function () {

@@ -70,6 +70,7 @@ class Accounting extends Model
         'BolloPrezzoTotale',
         'BolloAliquotaIVA',
         'BolloNatura',
+        'Note',
 
     ];
 

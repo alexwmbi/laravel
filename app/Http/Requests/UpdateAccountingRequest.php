@@ -22,7 +22,7 @@ class UpdateAccountingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            
+
             "Progressivo" => ['string','max:255', 'nullable'],
             "progressivo" => ['string','max:255', 'nullable'],
             "ProgressivoInvio" => ['string','max:255', 'nullable'],
@@ -77,8 +77,9 @@ class UpdateAccountingRequest extends FormRequest
             "ModalitaPagamento2" => ['string','max:255', 'nullable'],
             "DataScadenzaPagamento2" => ['string','max:255', 'nullable'],
             "ImportoPagamento2" => ['string','max:255', 'nullable'],
-            
+
             "Stato" => ['string','max:255', 'nullable'],
+            'Note'                   => ['sometimes', 'nullable', 'string', 'max:2000'],
 
         ];
     }

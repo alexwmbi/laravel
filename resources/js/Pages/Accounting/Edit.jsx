@@ -28,9 +28,10 @@ const fmtDateIT = (val) => {
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) {
     const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const mm = String(d.getMonth() + 1) + "";
+    const mm2 = mm.padStart(2, "0");
     const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
+    return `${dd}/${mm2}/${yyyy}`;
   }
   return s;
 };
@@ -44,6 +45,7 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
     ProgressivoInvio: a?.ProgressivoInvio ?? "",
     FornitoreNome: a?.FornitoreNome ?? "",
     Numero: a?.Numero ?? "",
+    Note: a?.Note ?? "", // ⬅️ nuovo campo in input singola riga
     Data: a?.Data ?? "",
     ImportoTotaleDocumento: a?.ImportoTotaleDocumento ?? "",
     Stato: a?.Stato ?? "",
@@ -164,6 +166,7 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                 {errors.FornitoreNome && <p className="mt-1 text-sm text-red-600">{errors.FornitoreNome}</p>}
               </div>
 
+              {/* --- RIGA: Numero | Note --- */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Numero</label>
                 <TextInput
@@ -174,6 +177,17 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
               </div>
 
               <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Note</label>
+                <TextInput
+                  value={data.Note}
+                  onChange={(e) => setData("Note", e.target.value)}
+                  placeholder="Annotazioni / Causale"
+                />
+                {errors.Note && <p className="mt-1 text-sm text-red-600">{errors.Note}</p>}
+              </div>
+
+              {/* --- RIGA: Data | Stato (Data al posto del vecchio Totale) --- */}
+              <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
                 <TextInput
                   type="date"
@@ -181,31 +195,6 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                   onChange={(e) => setData("Data", e.target.value)}
                 />
                 {errors.Data && <p className="mt-1 text-sm text-red-600">{errors.Data}</p>}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Totale</label>
-                <TextInput
-                  type="number"
-                  step="0.01"
-                  value={data.ImportoTotaleDocumento}
-                  onChange={(e) => setData("ImportoTotaleDocumento", e.target.value)}
-                />
-                {errors.ImportoTotaleDocumento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.ImportoTotaleDocumento}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Anteprima:{" "}
-                  <span className="font-medium">
-                    {formatEUR(
-                      // l’anteprima usa il tipo corrente dell’header (a.TipoDocumento)
-                      Number(
-                        (a?.TipoDocumento === "TD04" ? -1 : 1) *
-                          Number(data.ImportoTotaleDocumento || 0)
-                      )
-                    )}
-                  </span>
-                </p>
               </div>
 
               <div>
@@ -226,6 +215,28 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* --- NUOVA RIGA: Totale a tutta larghezza --- */}
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Totale</label>
+                <TextInput
+                  type="number"
+                  step="0.01"
+                  value={data.ImportoTotaleDocumento}
+                  onChange={(e) => setData("ImportoTotaleDocumento", e.target.value)}
+                />
+                {errors.ImportoTotaleDocumento && (
+                  <p className="mt-1 text-sm text-red-600">{errors.ImportoTotaleDocumento}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Anteprima:{" "}
+                  <span className="font-medium">
+                    {formatEUR(
+                      Number((a?.TipoDocumento === "TD04" ? -1 : 1) * Number(data.ImportoTotaleDocumento || 0))
+                    )}
+                  </span>
+                </p>
               </div>
             </div>
 
