@@ -16,162 +16,6 @@ class AccountingController extends Controller
     /** Tipi SdI che rappresentano note di credito */
     private const CREDIT_NOTE_TYPES = ['TD04'];
 
-    /** Lunghezza massima colonna Descrizione in DB */
-    private const DESCRIZIONE_MAX_LENGTH = 255;
-
-    /**
-     * Normalizza la codifica dell'XML in UTF-8.
-     *
-     * - Se l'XML dichiara encoding="windows-1252" (o altro != UTF-8),
-     *   converte tutto il contenuto in UTF-8 e aggiorna la declaration.
-     * - Se non dichiara nulla ma i byte non sono UTF-8 validi, prova
-     *   un fallback da Windows-1252 a UTF-8.
-     */
-    private function normalizeXmlEncoding(string $xml): string
-    {
-        // Cerco l'encoding dichiarato nella declaration XML
-        if (preg_match('/<\?xml[^>]*encoding="([^"]+)"/i', $xml, $m)) {
-            $encoding = strtoupper(trim($m[1])); // es. "WINDOWS-1252", "UTF-8", ecc.
-
-            if ($encoding !== 'UTF-8') {
-                try {
-                    // Converte TUTTO il file dalla codifica dichiarata a UTF-8
-                    $xml = mb_convert_encoding($xml, 'UTF-8', $encoding);
-
-                    // Aggiorna la declaration XML a UTF-8 per coerenza
-                    $xml = preg_replace(
-                        '/(<\?xml[^>]*encoding=")[^"]+(")/i',
-                        '$1UTF-8$2',
-                        $xml,
-                        1 // solo la prima occorrenza
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning("⚠️ Errore conversione XML da {$encoding} a UTF-8: " . $e->getMessage());
-                }
-            }
-        } else {
-            // Nessuna encoding dichiarata:
-            // se i byte NON sono UTF-8 validi, provo fallback "furbo"
-            if (!mb_check_encoding($xml, 'UTF-8')) {
-                try {
-                    // Nella pratica, molti XML arrivano da ambienti Windows → provo Windows-1252
-                    $xml = mb_convert_encoding($xml, 'UTF-8', 'Windows-1252');
-                } catch (\Throwable $e) {
-                    Log::warning("⚠️ Errore conversione XML non UTF-8 (fallback Windows-1252): " . $e->getMessage());
-                }
-            }
-        }
-
-        return $xml;
-    }
-
-    /**
-     * Trasforma un valore proveniente dall'XML in una stringa "sicura" per il DB:
-     * - se è scalare, lo restituisce così com’è
-     * - se è array, lo appiattisce e concatena i valori scalari con " | "
-     */
-    private function flattenXmlValue($value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (!is_array($value)) {
-            return is_scalar($value) ? (string)$value : json_encode($value);
-        }
-
-        $flat = [];
-        $it = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($value));
-        foreach ($it as $v) {
-            if (is_scalar($v)) {
-                $flat[] = (string)$v;
-            }
-        }
-
-        return $flat ? implode(' | ', $flat) : null;
-    }
-
-    /**
-     * Trova un'eventuale fattura già presente a sistema che sia
-     * "uguale" a quella che stiamo importando, usando più criteri:
-     *
-     * 1) ProgressivoInvio + fornitore (IdPaese / IdCodice / CodiceFiscale)
-     * 2) Numero + Data + fornitore
-     * 3) Hash SHA1 dell'intero XML (xml_originale)
-     *
-     * Restituisce il model Accounting duplicato oppure null se non trova niente.
-     */
-    private function findExistingAccountingDuplicate(array $accountingData, string $xmlString): ?Accounting
-    {
-        $progressivoInvio     = $accountingData['ProgressivoInvio']        ?? null;
-        $fornitoreIdPaese     = $accountingData['FornitoreIdPaese']        ?? null;
-        $fornitoreIdCodice    = $accountingData['FornitoreIdCodice']       ?? null;
-        $fornitoreCodFiscale  = $accountingData['FornitoreCodiceFiscale']  ?? null;
-        $numero               = $accountingData['Numero']                  ?? null;
-        $dataDocumento        = $accountingData['Data']                    ?? null;
-
-        $query = Accounting::query();
-        $hasCriteria = false;
-
-        // Criterio 1: ProgressivoInvio + fornitore
-        if (!empty($progressivoInvio)) {
-            $hasCriteria = true;
-            $query->orWhere(function ($q) use ($progressivoInvio, $fornitoreIdPaese, $fornitoreIdCodice, $fornitoreCodFiscale) {
-                $q->where('ProgressivoInvio', $progressivoInvio);
-
-                if (!empty($fornitoreIdPaese)) {
-                    $q->where('FornitoreIdPaese', $fornitoreIdPaese);
-                }
-                if (!empty($fornitoreIdCodice)) {
-                    $q->where('FornitoreIdCodice', $fornitoreIdCodice);
-                }
-                if (!empty($fornitoreCodFiscale)) {
-                    $q->where('FornitoreCodiceFiscale', $fornitoreCodFiscale);
-                }
-            });
-        }
-
-        // Criterio 2: Numero + Data + fornitore
-        if (!empty($numero) && !empty($dataDocumento)) {
-            $hasCriteria = true;
-            $query->orWhere(function ($q) use ($numero, $dataDocumento, $fornitoreCodFiscale, $fornitoreIdCodice, $fornitoreIdPaese) {
-                $q->where('Numero', $numero)
-                    ->whereDate('Data', $dataDocumento);
-
-                if (!empty($fornitoreCodFiscale)) {
-                    $q->where('FornitoreCodiceFiscale', $fornitoreCodFiscale);
-                } elseif (!empty($fornitoreIdCodice)) {
-                    $q->where('FornitoreIdCodice', $fornitoreIdCodice);
-                    if (!empty($fornitoreIdPaese)) {
-                        $q->where('FornitoreIdPaese', $fornitoreIdPaese);
-                    }
-                }
-            });
-        }
-
-        // Se ho almeno un criterio, provo prima con i campi strutturati
-        if ($hasCriteria) {
-            $duplicate = $query->first();
-            if ($duplicate) {
-                return $duplicate;
-            }
-        }
-
-        // Criterio 3: hash SHA1 del contenuto XML (xml_originale)
-        $xmlHash = sha1($xmlString);
-
-        $row = DB::table('accountings')
-            ->select('id')
-            ->whereRaw('SHA1(`xml_originale`) = ?', [$xmlHash])
-            ->first();
-
-        if ($row && isset($row->id)) {
-            return Accounting::find($row->id);
-        }
-
-        return null;
-    }
-
     public function index(Request $request)
     {
         // ===== 1) Base query con filtri =====
@@ -214,7 +58,7 @@ class AccountingController extends Controller
         // ===== 2) Totali con gli stessi filtri =====
         $count = (clone $base)->count();
 
-        // Totale documenti con segno coerente al tipo
+        // Totale documenti con segno coerente al tipo (robusto anche se ci fossero dati pregressi non normalizzati)
         $sumDocs = (clone $base)->selectRaw("
             COALESCE(SUM(
                 CASE
@@ -240,7 +84,7 @@ class AccountingController extends Controller
             ")
             ->value('s');
 
-        // Residuo = Totale documenti - Pagato
+        // Residuo = Totale documenti - Pagato (può essere negativo se prevalgono NC)
         $sumDue = (float)$sumDocs - (float)$sumPaid;
 
         $totals = [
@@ -271,20 +115,34 @@ class AccountingController extends Controller
 
         $sortDirection = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
+        // Ordinamento numerico per Progressivo/Numero se necessario
+        // if ($sortField === 'Progressivo') {
+        //     $tableQuery
+        //         ->orderByRaw('CAST(`Progressivo` AS UNSIGNED) ' . $sortDirection)
+        //         ->orderBy('Progressivo', $sortDirection);
+        // } elseif ($sortField === 'Numero') {
+        //     $tableQuery
+        //         ->orderByRaw('CAST(`Numero` AS UNSIGNED) ' . $sortDirection)
+        //         ->orderBy('Numero', $sortDirection);
+        // } else {
+        //     $tableQuery->orderBy($sortField, $sortDirection);
+        // }
+
         if ($sortField === 'Progressivo') {
             $dir = $sortDirection;
             $tableQuery->orderByRaw("
-                CASE
-                  WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(RIGHT(`Progressivo`, 2) AS UNSIGNED)
-                  ELSE -1
-                END {$dir}
-            ")->orderByRaw("
-                CASE
-                  WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(SUBSTRING_INDEX(`Progressivo`, '_', 1) AS UNSIGNED)
-                  ELSE CAST(`Progressivo` AS UNSIGNED)
-                END {$dir}
-            ");
+        CASE
+          WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(RIGHT(`Progressivo`, 2) AS UNSIGNED)
+          ELSE -1
+        END {$dir}
+    ")->orderByRaw("
+        CASE
+          WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(SUBSTRING_INDEX(`Progressivo`, '_', 1) AS UNSIGNED)
+          ELSE CAST(`Progressivo` AS UNSIGNED)
+        END {$dir}
+    ");
         }
+
 
         $accountings = $tableQuery->paginate(10)->appends($request->query());
 
@@ -308,27 +166,16 @@ class AccountingController extends Controller
 
         $files = $request->file('xml_data') ?? [];
         Log::info("🧪 File ricevuti: " . count($files));
-
         $importSuccess = 0;
         $importErrors  = [];
-
-        // Per evitare duplicati anche all'interno dello stesso batch di upload
-        $batchSeenLogicalKeys = []; // es. ProgressivoInvio+fornitore, Numero+Data+fornitore
-        $batchSeenXmlHashes   = []; // hash SHA1 dell'XML normalizzato
 
         foreach ($files as $file) {
             $fileName = $file->getClientOriginalName();
             Log::info("🔁 Inizio elaborazione file: $fileName");
 
             try {
-                // Leggo i byte del file XML
                 $xmlString = file_get_contents($file);
-
-                // Normalizzo la codifica a UTF-8
-                $xmlString = $this->normalizeXmlEncoding($xmlString);
-
-                // SimpleXML in UTF-8 (LIBXML_NOCDATA per includere i CDATA)
-                $xmlObject = simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA);
+                $xmlObject = simplexml_load_string($xmlString);
                 if ($xmlObject === false) {
                     throw new \Exception("XML non valido");
                 }
@@ -345,7 +192,7 @@ class AccountingController extends Controller
                     if (is_array($val) && array_key_exists(0, $val)) return $val;
                     return [$val];
                 };
-                // Parsing numeri: supporta "1.234,56" e "1234.56"
+                // Parsing numeri: supporta "1.234,56" e "1234.56" senza rompere i decimali
                 $toFloat = function ($v) {
                     if ($v === null || $v === '') return null;
                     $s = trim((string)$v);
@@ -357,6 +204,7 @@ class AccountingController extends Controller
                         // Es: 1234,56 -> 1234.56
                         $s = str_replace(',', '.', $s);
                     }
+                    // Se ha solo '.', è già formato XML standard
                     return is_numeric($s) ? (float)$s : null;
                 };
 
@@ -369,7 +217,6 @@ class AccountingController extends Controller
                 // ---- Pagamenti (sempre array) ----
                 $dpAll  = $asArray($body['DatiPagamento'] ?? []);
                 $dp     = $first($dpAll);
-                $dp     = is_array($dp) ? $dp : [];
                 $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
 
                 // ---- Cedente/Prestatore + fallback ----
@@ -404,7 +251,6 @@ class AccountingController extends Controller
                 $dbs   = $body['DatiBeniServizi'] ?? [];
                 $linee = $asArray($dbs['DettaglioLinee'] ?? []);
                 $firstLine = $first($linee) ?? null;
-                $firstLine = is_array($firstLine) ? $firstLine : [];
 
                 $riep = $asArray($dbs['DatiRiepilogo'] ?? []);
                 $sumImponibile = 0.0;
@@ -416,12 +262,8 @@ class AccountingController extends Controller
                     $sumImponibile += (float)($r['ImponibileImporto'] ?? 0);
                     $sumImposta    += (float)($r['Imposta'] ?? 0);
                     $sumSpeseAcc   += (float)($r['SpeseAccessorie'] ?? 0);
-                    if (isset($r['AliquotaIVA'])) {
-                        $aliquote[] = (string)$r['AliquotaIVA'];
-                    }
-                    if (!$riepEsig && !empty($r['EsigibilitaIVA'])) {
-                        $riepEsig = $r['EsigibilitaIVA'];
-                    }
+                    if (isset($r['AliquotaIVA'])) $aliquote[] = (string)$r['AliquotaIVA'];
+                    if (!$riepEsig && !empty($r['EsigibilitaIVA'])) $riepEsig = $r['EsigibilitaIVA'];
                 }
                 $aliquotaUniforme = (count(array_unique($aliquote)) === 1) ? ($aliquote[0] ?? null) : null;
 
@@ -437,7 +279,7 @@ class AccountingController extends Controller
 
                 // ---- Codici articolo (se esistono) ----
                 $codArtTipo1 = $codArtVal1 = $codArtTipo2 = $codArtVal2 = null;
-                if (!empty($firstLine['CodiceArticolo'])) {
+                if (is_array($firstLine) && !empty($firstLine['CodiceArticolo'])) {
                     $codes = $firstLine['CodiceArticolo'];
                     if (isset($codes['CodiceTipo']) || isset($codes['CodiceValore'])) {
                         $codes = [$codes]; // wrap singolo
@@ -453,32 +295,19 @@ class AccountingController extends Controller
                     }
                 }
 
-                // ---- Descrizione prima riga: normalizzazione e trunc a 255 ----
-                $descrizioneLinea = $firstLine['Descrizione'] ?? null;
-                if (is_array($descrizioneLinea)) {
-                    $descrizioneLinea = $this->flattenXmlValue($descrizioneLinea);
-                }
-                if (is_string($descrizioneLinea)) {
-                    $descrizioneLinea = trim($descrizioneLinea);
-                    $len = mb_strlen($descrizioneLinea);
-                    if ($len > self::DESCRIZIONE_MAX_LENGTH) {
-                        Log::warning("⚠️ [$fileName] Descrizione troppo lunga ({$len} chars), troncata a " . self::DESCRIZIONE_MAX_LENGTH . ".");
-                        $descrizioneLinea = mb_substr($descrizioneLinea, 0, self::DESCRIZIONE_MAX_LENGTH);
-                    }
-                }
-
                 // ==== Build array insert (retro-compat + extra sicuri) ====
                 $Accounting_array = [
-                    // Trasmissione
+                    // Trasmissione (vecchio import li popolava)
                     'ProgressivoInvio'    => $header['DatiTrasmissione']['ProgressivoInvio'] ?? null,
                     'FormatoTrasmissione' => $header['DatiTrasmissione']['FormatoTrasmissione'] ?? null,
                     'FornitoreIdPaese'    => $idPaese,
                     'FornitoreIdCodice'   => $idCodice,
 
-                    // Cedente/Prestatore
+                    // Cedente/Prestatore (vecchio import: CF, Denominazione)
                     'FornitoreCodiceFiscale' => $da['CodiceFiscale'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null),
                     'FornitoreNome'          => $fornitoreDisplay,
 
+                    // Extra “storici” (se presenti nell’XML: restano opzionali)
                     'FornitoreRegimeFiscale' => $da['RegimeFiscale'] ?? null,
                     'FornitoreSedeIndirizzo' => $sede['Indirizzo'] ?? null,
                     'FornitoreSedeCAP'       => $sede['CAP'] ?? null,
@@ -493,33 +322,33 @@ class AccountingController extends Controller
                     'SocioUnicoRea'          => $rea['SocioUnico'] ?? null,
                     'StatoLiquidazioneRea'   => $rea['StatoLiquidazione'] ?? null,
 
-                    // Documento
+                    // Documento (vecchio import li popolava)
                     'TipoDocumento'            => $dgd['TipoDocumento'] ?? null,
                     'Divisa'                   => $dgd['Divisa'] ?? null,
                     'Data'                     => $dgd['Data'] ?? null,
                     'Numero'                   => $dgd['Numero'] ?? null,
                     'ImportoTotaleDocumento'   => $dgd['ImportoTotaleDocumento'] ?? null,
 
-                    // Prima riga bene/servizio
+                    // Prima riga bene/servizio (storico, opzionale)
                     'CodiceArticoloTipo1'   => $codArtTipo1,
                     'CodiceArticoloValore1' => $codArtVal1,
                     'CodiceArticoloTipo2'   => $codArtTipo2,
                     'CodiceArticoloValore2' => $codArtVal2,
-                    'Descrizione'           => $descrizioneLinea,
+                    'Descrizione'           => $firstLine['Descrizione']    ?? null,
                     'Quantita'              => $firstLine['Quantita']       ?? null,
                     'UnitaMisura'           => $firstLine['UnitaMisura']    ?? null,
                     'PrezzoUnitario'        => $firstLine['PrezzoUnitario'] ?? null,
                     'PrezzoTotale'          => $firstLine['PrezzoTotale']   ?? null,
                     'AliquotaIVA'           => $firstLine['AliquotaIVA']    ?? null,
 
-                    // Riepilogo
+                    // Riepilogo (storico, opzionale)
                     'RiepilogoAliquotaIVA'       => $aliquotaUniforme,
                     'RiepilogoSpeseAccessorie'   => (string)$sumSpeseAcc,
                     'RiepilogoImponibileImporto' => (string)$sumImponibile,
                     'RiepilogoImposta'           => (string)$sumImposta,
                     'RiepilogoEsigibilitaIVA'    => $riepEsig,
 
-                    // Pagamenti header
+                    // Pagamenti header (storico, opzionale)
                     'CondizioniPagamento'      => $dp['CondizioniPagamento'] ?? null,
                     'ModalitaPagamento1'       => $detPag[0]['ModalitaPagamento']     ?? null,
                     'DataScadenzaPagamento1'   => $detPag[0]['DataScadenzaPagamento'] ?? null,
@@ -529,78 +358,14 @@ class AccountingController extends Controller
                     'ImportoPagamento2'        => $detPag[1]['ImportoPagamento']      ?? null,
 
                     // Tracking
-                    'Stato'         => 'aperta',
+                    'Stato'         => 'aperta',   // (vecchio era 'Aperta', il tuo cast gestisce la normalizzazione)
                     'xml_originale' => $xmlString,
-                    'imported_at'   => now(),   // Carbon, compatibile con colonna DATETIME/TIMESTAMP
+                    'imported_at'   => now(),
 
-                    // Note / causale
+                    //Note
                     'Note'          => $rawCausale ?: null,
+
                 ];
-
-                // --- PRIMO: controllo se esiste già in DB una fattura equivalente ---
-                $existing = $this->findExistingAccountingDuplicate($Accounting_array, $xmlString);
-                if ($existing) {
-                    Log::warning("⛔ [$fileName] Fattura già importata (id={$existing->id}). Import saltato.");
-
-                    $importErrors[] = [
-                        'file'  => $fileName,
-                        'error' => "Fattura già presente a sistema (id {$existing->id}). Importazione ignorata.",
-                    ];
-
-                    continue; // passa al prossimo file
-                }
-
-                // --- SECONDO: controllo duplicato all'interno dello stesso batch ---
-                $batchKeys = [];
-
-                // Key basata su ProgressivoInvio + fornitore
-                if (!empty($Accounting_array['ProgressivoInvio'])) {
-                    $batchKeys[] = 'PI|' . $Accounting_array['ProgressivoInvio']
-                        . '|' . ($Accounting_array['FornitoreIdPaese'] ?? '')
-                        . '|' . ($Accounting_array['FornitoreIdCodice'] ?? '')
-                        . '|' . ($Accounting_array['FornitoreCodiceFiscale'] ?? '');
-                }
-
-                // Key basata su Numero + Data + fornitore
-                if (!empty($Accounting_array['Numero']) && !empty($Accounting_array['Data'])) {
-                    $batchKeys[] = 'ND|' . $Accounting_array['Numero']
-                        . '|' . $Accounting_array['Data']
-                        . '|' . ($Accounting_array['FornitoreCodiceFiscale'] ?? ($Accounting_array['FornitoreIdCodice'] ?? ''))
-                        . '|' . ($Accounting_array['FornitoreIdPaese'] ?? '');
-                }
-
-                $xmlHash = sha1($xmlString);
-                $isBatchDuplicate = false;
-
-                foreach ($batchKeys as $k) {
-                    if (!empty($k) && isset($batchSeenLogicalKeys[$k])) {
-                        $isBatchDuplicate = true;
-                        break;
-                    }
-                }
-
-                if (!$isBatchDuplicate && isset($batchSeenXmlHashes[$xmlHash])) {
-                    $isBatchDuplicate = true;
-                }
-
-                if ($isBatchDuplicate) {
-                    Log::warning("⛔ [$fileName] Fattura duplicata all'interno dello stesso batch. Import saltato.");
-
-                    $importErrors[] = [
-                        'file'  => $fileName,
-                        'error' => "Fattura duplicata all'interno di questo import multiplo. Importazione ignorata.",
-                    ];
-
-                    continue;
-                }
-
-                // Se non era duplicata nel batch, memorizzo le chiavi viste
-                foreach ($batchKeys as $k) {
-                    if (!empty($k)) {
-                        $batchSeenLogicalKeys[$k] = true;
-                    }
-                }
-                $batchSeenXmlHashes[$xmlHash] = true;
 
                 // --- Riga bollo (se presente) -> campi migration ---
                 if ($bollo) {
@@ -612,11 +377,11 @@ class AccountingController extends Controller
                     $Accounting_array['BolloNatura']           = $bollo['Natura'] ?? null;
 
                     Log::info("🧾 [$fileName] Riga bollo rilevata", [
-                        'Numero'       => $Accounting_array['BolloLineaNumero'],
-                        'Descrizione'  => $Accounting_array['BolloLineaDescrizione'],
+                        'Numero'      => $Accounting_array['BolloLineaNumero'],
+                        'Descrizione' => $Accounting_array['BolloLineaDescrizione'],
                         'PrezzoTotale' => $Accounting_array['BolloPrezzoTotale'],
-                        'AliquotaIVA'  => $Accounting_array['BolloAliquotaIVA'],
-                        'Natura'       => $Accounting_array['BolloNatura'],
+                        'AliquotaIVA' => $Accounting_array['BolloAliquotaIVA'],
+                        'Natura'      => $Accounting_array['BolloNatura'],
                     ]);
                 }
 
@@ -643,13 +408,6 @@ class AccountingController extends Controller
                     $Accounting_array['Progressivo'] = $next . '_' . $yy; // es. "1_25"
                 }
 
-                // --- Sanificazione finale: nessun campo deve restare array ---
-                foreach ($Accounting_array as $key => $value) {
-                    if (is_array($value)) {
-                        Log::warning("⚠️ [$fileName] Campo {$key} è array, verrà serializzato in stringa.");
-                        $Accounting_array[$key] = $this->flattenXmlValue($value);
-                    }
-                }
 
                 // --- Warning campi vuoti ---
                 $campiVuoti = [];
@@ -665,7 +423,7 @@ class AccountingController extends Controller
                 // --- Salva testata ---
                 $savedAccounting = Accounting::create($Accounting_array);
 
-                // --- Salva righe pagamento ---
+                // --- Salva righe pagamento (retro-compat: stessi 3 campi + stato) ---
                 foreach ($detPag as $pagamento) {
                     $mp = $pagamento['ModalitaPagamento'] ?? null;
 
@@ -693,10 +451,7 @@ class AccountingController extends Controller
                 $importSuccess++;
             } catch (\Throwable $e) {
                 Log::error("❌ [$fileName] Errore: " . $e->getMessage());
-                $importErrors[] = [
-                    'file'  => $fileName,
-                    'error' => $e->getMessage(),
-                ];
+                $importErrors[] = ['file' => $fileName, 'error' => $e->getMessage()];
             }
         }
 
@@ -706,15 +461,311 @@ class AccountingController extends Controller
             ->with('import_errors', $importErrors);
     }
 
+
+    //    public function store(StoreAccountingRequest $request)
+    // {
+    //     Log::info('🚨 Entra nel metodo store');
+
+    //     $files = $request->file('xml_data') ?? [];
+    //     Log::info("🧪 File ricevuti: " . count($files));
+    //     $importSuccess = 0;
+    //     $importErrors  = [];
+
+    //     foreach ($files as $file) {
+    //         $fileName = $file->getClientOriginalName();
+    //         Log::info("🔁 Inizio elaborazione file: $fileName");
+
+    //         try {
+    //             $xmlString = file_get_contents($file);
+    //             $xmlObject = simplexml_load_string($xmlString);
+    //             if ($xmlObject === false) {
+    //                 throw new \Exception("XML non valido");
+    //             }
+
+    //             // Array PHP dal SimpleXML
+    //             $arr = json_decode(json_encode($xmlObject), true);
+
+    //             // ==== Helpers "elastici" ====
+    //             $first = function ($val) {
+    //                 return (is_array($val) && array_key_exists(0, $val)) ? $val[0] : $val;
+    //             };
+    //             $asArray = function ($val) {
+    //                 if ($val === null) return [];
+    //                 if (is_array($val) && array_key_exists(0, $val)) return $val;
+    //                 return [$val];
+    //             };
+    //             // ⚠️ Fix: non rimuovere il '.' se è il separatore decimale dell'XML
+    //             $toFloat = function ($v) {
+    //                 if ($v === null || $v === '') return null;
+    //                 $s = trim((string)$v);
+    //                 // se contiene sia '.' che ',', assumo formattazione italiana "1.234,56"
+    //                 if (str_contains($s, '.') && str_contains($s, ',')) {
+    //                     $s = str_replace('.', '', $s);   // rimuovi separatore migliaia
+    //                     $s = str_replace(',', '.', $s);  // virgola -> punto
+    //                 } elseif (str_contains($s, ',') && !str_contains($s, '.')) {
+    //                     // "1234,56" -> "1234.56"
+    //                     $s = str_replace(',', '.', $s);
+    //                 }
+    //                 // se ha solo '.', è già OK (XML tipicamente usa '.')
+    //                 return is_numeric($s) ? (float)$s : null;
+    //             };
+
+    //             // ==== Header / Body ====
+    //             $header = $arr['FatturaElettronicaHeader'] ?? [];
+    //             $bodies = $asArray($arr['FatturaElettronicaBody'] ?? []);
+    //             $body   = $first($bodies);
+
+    //             // ---- Dati pagamento (array sempre) ----
+    //             $dpAll  = $asArray($body['DatiPagamento'] ?? []);
+    //             $dp     = $first($dpAll);
+    //             $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
+
+    //             // ---- Cedente/Prestatore (con fallback) ----
+    //             $ced  = $header['CedentePrestatore'] ?? [];
+    //             $da   = $ced['DatiAnagrafici'] ?? [];
+    //             $ana  = $da['Anagrafica'] ?? [];
+    //             $sede = $ced['Sede'] ?? ($ced['StabileOrganizzazione'] ?? []);
+    //             $cont = $ced['Contatti'] ?? [];
+    //             $rea  = $ced['IscrizioneREA'] ?? [];
+
+    //             $den  = isset($ana['Denominazione']) ? trim((string)$ana['Denominazione']) : '';
+    //             $nome = isset($ana['Nome']) ? trim((string)$ana['Nome']) : '';
+    //             $cogn = isset($ana['Cognome']) ? trim((string)$ana['Cognome']) : '';
+    //             $fornitoreDisplay = $den !== '' ? $den : (trim($nome.' '.$cogn) ?: null);
+
+    //             // Se IdTrasmittente assenti, prendo dall'IdFiscale del cedente
+    //             $idPaese  = $header['DatiTrasmissione']['IdTrasmittente']['IdPaese']  ?? ($da['IdFiscaleIVA']['IdPaese']  ?? null);
+    //             $idCodice = $header['DatiTrasmissione']['IdTrasmittente']['IdCodice'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null);
+
+    //             // ---- Documento ----
+    //             $dgd = $body['DatiGenerali']['DatiGeneraliDocumento'] ?? [];
+
+    //             // ---- Dati Beni/Servizi (prima riga + riepilogo) ----
+    //             $dbs   = $body['DatiBeniServizi'] ?? [];
+    //             $linee = $asArray($dbs['DettaglioLinee'] ?? []);
+    //             $firstLine = $first($linee) ?? null;
+
+    //             $riep = $asArray($dbs['DatiRiepilogo'] ?? []);
+    //             $sumImponibile = 0.0;
+    //             $sumImposta    = 0.0;
+    //             $sumSpeseAcc   = 0.0;
+    //             $aliquote      = [];
+    //             $riepEsig      = null;
+    //             foreach ($riep as $r) {
+    //                 $sumImponibile += (float)($r['ImponibileImporto'] ?? 0);
+    //                 $sumImposta    += (float)($r['Imposta'] ?? 0);
+    //                 $sumSpeseAcc   += (float)($r['SpeseAccessorie'] ?? 0);
+    //                 if (isset($r['AliquotaIVA'])) $aliquote[] = (string)$r['AliquotaIVA'];
+    //                 if (!$riepEsig && !empty($r['EsigibilitaIVA'])) $riepEsig = $r['EsigibilitaIVA'];
+    //             }
+    //             $aliquotaUniforme = (count(array_unique($aliquote)) === 1) ? ($aliquote[0] ?? null) : null;
+
+    //             // ---- Riga bollo (match su descrizione) ----
+    //             $bollo = null;
+    //             foreach ($linee as $ln) {
+    //                 $descr = isset($ln['Descrizione']) ? mb_strtolower(trim((string)$ln['Descrizione'])) : '';
+    //                 if ($descr !== '' && preg_match('/\bbollo\b|marca\s+da\s+bollo|imposta\s+di\s+bollo|rimborso\s+spese\s+di\s+bollo/u', $descr)) {
+    //                     $bollo = $ln; break;
+    //                 }
+    //             }
+
+    //             // ---- CodiceArticolo (sicuro anche se assente) ----
+    //             $codArtTipo1 = $codArtVal1 = $codArtTipo2 = $codArtVal2 = null;
+    //             if (is_array($firstLine) && !empty($firstLine['CodiceArticolo'])) {
+    //                 $codes = $firstLine['CodiceArticolo'];
+    //                 // se è assoc -> wrap
+    //                 if (isset($codes['CodiceTipo']) || isset($codes['CodiceValore'])) {
+    //                     $codes = [$codes];
+    //                 }
+    //                 $codes = array_values($codes);
+    //                 if (isset($codes[0]) && is_array($codes[0])) {
+    //                     $codArtTipo1 = $codes[0]['CodiceTipo']   ?? null;
+    //                     $codArtVal1  = $codes[0]['CodiceValore'] ?? null;
+    //                 }
+    //                 if (isset($codes[1]) && is_array($codes[1])) {
+    //                     $codArtTipo2 = $codes[1]['CodiceTipo']   ?? null;
+    //                     $codArtVal2  = $codes[1]['CodiceValore'] ?? null;
+    //                 }
+    //             }
+
+    //             // ==== Build array insert (retro-compat completo) ====
+    //             $Accounting_array = [
+    //                 // Trasmissione
+    //                 'ProgressivoInvio'    => $header['DatiTrasmissione']['ProgressivoInvio'] ?? null,
+    //                 'FormatoTrasmissione' => $header['DatiTrasmissione']['FormatoTrasmissione'] ?? null,
+    //                 'FornitoreIdPaese'    => $idPaese,
+    //                 'FornitoreIdCodice'   => $idCodice,
+
+    //                 // Cedente/Prestatore
+    //                 'FornitoreCodiceFiscale' => $da['CodiceFiscale'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null),
+    //                 'FornitoreNome'          => $fornitoreDisplay,
+    //                 'FornitoreRegimeFiscale' => $da['RegimeFiscale'] ?? null,
+
+    //                 'FornitoreSedeIndirizzo' => $sede['Indirizzo'] ?? null,
+    //                 'FornitoreSedeCAP'       => $sede['CAP'] ?? null,
+    //                 'FornitoreSedeComune'    => $sede['Comune'] ?? null,
+    //                 'FornitoreSedeProvincia' => $sede['Provincia'] ?? null,
+    //                 'FornitoreSedeNazione'   => $sede['Nazione'] ?? null,
+
+    //                 'FornitoreTelefono'      => $cont['Telefono'] ?? null,
+    //                 'FornitoreEmail'         => $cont['Email'] ?? null,
+
+    //                 // REA
+    //                 'UfficioRea'             => $rea['Ufficio'] ?? null,
+    //                 'NumeroRea'              => $rea['NumeroREA'] ?? null,
+    //                 'CapitaleSocialeRea'     => $rea['CapitaleSociale'] ?? null,
+    //                 'SocioUnicoRea'          => $rea['SocioUnico'] ?? null,
+    //                 'StatoLiquidazioneRea'   => $rea['StatoLiquidazione'] ?? null,
+
+    //                 // Documento
+    //                 'TipoDocumento'            => $dgd['TipoDocumento'] ?? null,
+    //                 'Divisa'                   => $dgd['Divisa'] ?? null,
+    //                 'Data'                     => $dgd['Data'] ?? null,
+    //                 'Numero'                   => $dgd['Numero'] ?? null,
+    //                 'ImportoTotaleDocumento'   => $dgd['ImportoTotaleDocumento'] ?? null,
+
+    //                 // Prima riga (storici)
+    //                 'CodiceArticoloTipo1'   => $codArtTipo1,
+    //                 'CodiceArticoloValore1' => $codArtVal1,
+    //                 'CodiceArticoloTipo2'   => $codArtTipo2,
+    //                 'CodiceArticoloValore2' => $codArtVal2,
+    //                 'Descrizione'           => $firstLine['Descrizione']    ?? null,
+    //                 'Quantita'              => $firstLine['Quantita']       ?? null,
+    //                 'UnitaMisura'           => $firstLine['UnitaMisura']    ?? null,
+    //                 'PrezzoUnitario'        => $firstLine['PrezzoUnitario'] ?? null,
+    //                 'PrezzoTotale'          => $firstLine['PrezzoTotale']   ?? null,
+    //                 'AliquotaIVA'           => $firstLine['AliquotaIVA']    ?? null,
+
+    //                 // Riepilogo (storici)
+    //                 'RiepilogoAliquotaIVA'       => $aliquotaUniforme,
+    //                 'RiepilogoSpeseAccessorie'   => (string)$sumSpeseAcc,
+    //                 'RiepilogoImponibileImporto' => (string)$sumImponibile,
+    //                 'RiepilogoImposta'           => (string)$sumImposta,
+    //                 'RiepilogoEsigibilitaIVA'    => $riepEsig,
+
+    //                 // Pagamenti header (storici)
+    //                 'CondizioniPagamento'      => $dp['CondizioniPagamento'] ?? null,
+    //                 'ModalitaPagamento1'       => $detPag[0]['ModalitaPagamento']     ?? null,
+    //                 'DataScadenzaPagamento1'   => $detPag[0]['DataScadenzaPagamento'] ?? null,
+    //                 'ImportoPagamento1'        => $detPag[0]['ImportoPagamento']      ?? null,
+    //                 'ModalitaPagamento2'       => $detPag[1]['ModalitaPagamento']     ?? null,
+    //                 'DataScadenzaPagamento2'   => $detPag[1]['DataScadenzaPagamento'] ?? null,
+    //                 'ImportoPagamento2'        => $detPag[1]['ImportoPagamento']      ?? null,
+
+    //                 // Tracking
+    //                 'Stato'         => 'aperta',
+    //                 'xml_originale' => $xmlString,
+    //                 'imported_at'   => now(),
+    //             ];
+
+    //             // --- Riga bollo -> campi migration ---
+    //             if ($bollo) {
+    //                 $Accounting_array['BolloLineaNumero']      = isset($bollo['NumeroLinea']) ? (int)$bollo['NumeroLinea'] : null;
+    //                 $Accounting_array['BolloLineaDescrizione'] = $bollo['Descrizione'] ?? null;
+    //                 $Accounting_array['BolloPrezzoUnitario']   = $toFloat($bollo['PrezzoUnitario'] ?? null);
+    //                 $Accounting_array['BolloPrezzoTotale']     = $toFloat($bollo['PrezzoTotale'] ?? null);
+    //                 $Accounting_array['BolloAliquotaIVA']      = $toFloat($bollo['AliquotaIVA'] ?? null);
+    //                 $Accounting_array['BolloNatura']           = $bollo['Natura'] ?? null;
+
+    //                 Log::info("🧾 [$fileName] Riga bollo rilevata", [
+    //                     'Numero'      => $Accounting_array['BolloLineaNumero'],
+    //                     'Descrizione' => $Accounting_array['BolloLineaDescrizione'],
+    //                     'PrezzoTotale'=> $Accounting_array['BolloPrezzoTotale'],
+    //                     'AliquotaIVA' => $Accounting_array['BolloAliquotaIVA'],
+    //                     'Natura'      => $Accounting_array['BolloNatura'],
+    //                 ]);
+    //             }
+
+    //             // --- Segno coerente su TD04 ---
+    //             $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
+    //             $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
+    //             $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
+
+    //             // --- Obbligatorio minimo ---
+    //             if (empty($Accounting_array['ProgressivoInvio'])) {
+    //                 throw new \Exception("Campo obbligatorio mancante: ProgressivoInvio");
+    //             }
+
+    //             // --- Progressivo auto (MAX + 1) se assente ---
+    //             if (empty($Accounting_array['Progressivo'])) {
+    //                 $max = Accounting::whereNotNull('Progressivo')
+    //                     ->selectRaw('MAX(CAST(Progressivo AS UNSIGNED)) as m')
+    //                     ->value('m');
+    //                 $Accounting_array['Progressivo'] = (string)((int)($max ?? 0) + 1);
+    //             }
+
+    //             // --- Log campi mancanti/empty (solo warning) ---
+    //             $campiVuoti = [];
+    //             foreach ($Accounting_array as $k => $v) {
+    //                 if ($v === null || (is_string($v) && trim($v) === '')) {
+    //                     $campiVuoti[] = $k;
+    //                 }
+    //             }
+    //             if (!empty($campiVuoti)) {
+    //                 Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
+    //             }
+
+    //             // --- Salva testata ---
+    //             $savedAccounting = Accounting::create($Accounting_array);
+
+    //             // --- Dettaglio pagamenti ---
+    //             foreach ($detPag as $pagamento) {
+    //                 $mp = $pagamento['ModalitaPagamento'] ?? null;
+    //                 $tipo = match ($mp) {
+    //                     'MP05' => 'bonifico',
+    //                     'MP12', 'MP13' => 'riba',
+    //                     'MP01' => 'contanti',
+    //                     'MP02', 'MP03' => 'assegno',
+    //                     default => null,
+    //                 };
+
+    //                 DB::table('detail_accountings')->insert([
+    //                     'accountingId'          => $savedAccounting->id,
+    //                     'modalitaPagamento'     => $mp,
+    //                     'dataScadenzaPagamento' => $pagamento['DataScadenzaPagamento'] ?? null,
+    //                     'importoPagamento'      => isset($pagamento['ImportoPagamento']) ? (float)$pagamento['ImportoPagamento'] : null,
+    //                     'stato'                 => 'aperta',
+    //                     'tipoPagamento'         => $tipo,
+    //                     'note'                  => null,
+    //                 ]);
+    //             }
+
+    //             Log::info("✅ [$fileName] Importazione riuscita.");
+    //             $importSuccess++;
+
+    //         } catch (\Throwable $e) {
+    //             Log::error("❌ [$fileName] Errore: " . $e->getMessage());
+    //             $importErrors[] = ['file' => $fileName, 'error' => $e->getMessage()];
+    //         }
+    //     }
+
+    //     return redirect()
+    //         ->route('accounting.index')
+    //         ->with('success', "$importSuccess fatture importate.")
+    //         ->with('import_errors', $importErrors);
+    // }
+
+
+
+    // App\Http\Controllers\AccountingController.php
+
     public function show(Accounting $accounting)
     {
         $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Show', [
+            // passo direttamente il Model per avere *tutti* i campi
             'accounting' => $accounting,
             'backQuery'  => request()->query() ?: null,
         ]);
     }
+
+
+
+    /*  public function show(Accounting $accounting)
+    {
+        return inertia("Accounting/Import");
+    } */
 
     public function edit(Accounting $accounting)
     {
@@ -723,6 +774,7 @@ class AccountingController extends Controller
 
         return inertia('Accounting/Edit', [
             'accounting' => new AccountingResource($accounting),
+            // passo le righe come array piatto per semplicità lato JSX
             'detailAccountings' => $accounting->detailAccounting->map(function ($d) {
                 return [
                     'id' => $d->id,
@@ -763,7 +815,7 @@ class AccountingController extends Controller
         return inertia("Accounting/Import");
     }
 
-    // === Update “generico” (inline/field-level)
+    // === 3.2 – Update “generico” della fattura (inline/field-level)
     public function patchField(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
@@ -775,7 +827,7 @@ class AccountingController extends Controller
             'ImportoTotaleDocumento'   => ['sometimes', 'nullable', 'numeric'],
             'TipoDocumento'            => ['sometimes', 'required', 'in:TD01,TD04'],
             'Stato'                    => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
-            'Note'                     => ['sometimes', 'nullable', 'string', 'max:2000'],
+             'Note'                     => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
         // Tipo effettivo (nuovo o esistente) per capire il segno
@@ -802,7 +854,7 @@ class AccountingController extends Controller
         return back()->with('success', 'Fattura aggiornata');
     }
 
-    // === CRUD delle righe pagamento
+    // === 3.3 – CRUD delle righe pagamento
     public function storeDetail(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
@@ -843,6 +895,7 @@ class AccountingController extends Controller
     // === Nuovo: pagina di edit della singola riga pagamento
     public function editDetail(DetailAccounting $detail)
     {
+        // opzionale: se esiste la relazione "accounting", la carico per eventuali usi
         $detail->loadMissing('accounting');
 
         return inertia('DetailAccounting/Edit', [
@@ -861,6 +914,7 @@ class AccountingController extends Controller
             'success'       => session('success'),
         ]);
     }
+
 
     public function downloadXml(Accounting $accounting)
     {

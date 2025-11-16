@@ -1,0 +1,12 @@
+[2025-11-16 17:01:27] local.INFO: 🚨 Entra nel metodo store  
+[2025-11-16 17:01:27] local.INFO: 🧪 File ricevuti: 4  
+[2025-11-16 17:01:27] local.INFO: 🔁 Inizio elaborazione file: 51234_SM03473_Ehjog.xml  
+[2025-11-16 17:01:27] local.WARNING: ⛔ [51234_SM03473_Ehjog.xml] Fattura già importata (id=67). Import saltato.  
+[2025-11-16 17:01:27] local.INFO: 🔁 Inizio elaborazione file: IT00419390471_7996.xml  
+[2025-11-16 17:01:27] local.WARNING: ⛔ [IT00419390471_7996.xml] Fattura già importata (id=68). Import saltato.  
+[2025-11-16 17:01:27] local.INFO: 🔁 Inizio elaborazione file: 569_IT07945211006KTMF0_RC48D.xml  
+[2025-11-16 17:01:27] local.WARNING: ⚠️ [569_IT07945211006KTMF0_RC48D.xml] Descrizione troppo lunga (271 chars), troncata a 255.  
+[2025-11-16 17:01:27] local.WARNING: ⛔ [569_IT07945211006KTMF0_RC48D.xml] Fattura già importata (id=69). Import saltato.  
+[2025-11-16 17:01:27] local.INFO: 🔁 Inizio elaborazione file: 789_IT00301010971_00DWB.xml  
+[2025-11-16 17:01:27] local.WARNING: ⚠️ [789_IT00301010971_00DWB.xml] Campi mancanti/empty: FornitoreTelefono, FornitoreEmail, UfficioRea, NumeroRea, CapitaleSocialeRea, SocioUnicoRea, StatoLiquidazioneRea, CodiceArticoloTipo1, CodiceArticoloValore1, CodiceArticoloTipo2, CodiceArticoloValore2, Quantita, UnitaMisura, ModalitaPagamento2, DataScadenzaPagamento2, ImportoPagamento2, Note  
+[2025-11-16 17:01:27] local.INFO: ✅ [789_IT00301010971_00DWB.xml] Importazione riuscita.  
