@@ -21,40 +21,29 @@ class AccountingController extends Controller
 
     /**
      * Normalizza la codifica dell'XML in UTF-8.
-     *
-     * - Se l'XML dichiara encoding="windows-1252" (o altro != UTF-8),
-     *   converte tutto il contenuto in UTF-8 e aggiorna la declaration.
-     * - Se non dichiara nulla ma i byte non sono UTF-8 validi, prova
-     *   un fallback da Windows-1252 a UTF-8.
      */
     private function normalizeXmlEncoding(string $xml): string
     {
-        // Cerco l'encoding dichiarato nella declaration XML
         if (preg_match('/<\?xml[^>]*encoding="([^"]+)"/i', $xml, $m)) {
-            $encoding = strtoupper(trim($m[1])); // es. "WINDOWS-1252", "UTF-8", ecc.
+            $encoding = strtoupper(trim($m[1]));
 
             if ($encoding !== 'UTF-8') {
                 try {
-                    // Converte TUTTO il file dalla codifica dichiarata a UTF-8
                     $xml = mb_convert_encoding($xml, 'UTF-8', $encoding);
 
-                    // Aggiorna la declaration XML a UTF-8 per coerenza
                     $xml = preg_replace(
                         '/(<\?xml[^>]*encoding=")[^"]+(")/i',
                         '$1UTF-8$2',
                         $xml,
-                        1 // solo la prima occorrenza
+                        1
                     );
                 } catch (\Throwable $e) {
                     Log::warning("⚠️ Errore conversione XML da {$encoding} a UTF-8: " . $e->getMessage());
                 }
             }
         } else {
-            // Nessuna encoding dichiarata:
-            // se i byte NON sono UTF-8 validi, provo fallback "furbo"
             if (!mb_check_encoding($xml, 'UTF-8')) {
                 try {
-                    // Nella pratica, molti XML arrivano da ambienti Windows → provo Windows-1252
                     $xml = mb_convert_encoding($xml, 'UTF-8', 'Windows-1252');
                 } catch (\Throwable $e) {
                     Log::warning("⚠️ Errore conversione XML non UTF-8 (fallback Windows-1252): " . $e->getMessage());
@@ -66,9 +55,7 @@ class AccountingController extends Controller
     }
 
     /**
-     * Trasforma un valore proveniente dall'XML in una stringa "sicura" per il DB:
-     * - se è scalare, lo restituisce così com’è
-     * - se è array, lo appiattisce e concatena i valori scalari con " | "
+     * Appiattisce un valore XML complesso in una stringa.
      */
     private function flattenXmlValue($value): ?string
     {
@@ -77,14 +64,15 @@ class AccountingController extends Controller
         }
 
         if (!is_array($value)) {
-            return is_scalar($value) ? (string)$value : json_encode($value);
+            return is_scalar($value) ? (string) $value : json_encode($value);
         }
 
         $flat = [];
-        $it = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($value));
+        $it   = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($value));
+
         foreach ($it as $v) {
             if (is_scalar($v)) {
-                $flat[] = (string)$v;
+                $flat[] = (string) $v;
             }
         }
 
@@ -92,31 +80,29 @@ class AccountingController extends Controller
     }
 
     /**
-     * Trova un'eventuale fattura già presente a sistema che sia
-     * "uguale" a quella che stiamo importando, usando più criteri:
-     *
-     * 1) ProgressivoInvio + fornitore (IdPaese / IdCodice / CodiceFiscale)
-     * 2) Numero + Data + fornitore
-     * 3) Hash SHA1 dell'intero XML (xml_originale)
-     *
-     * Restituisce il model Accounting duplicato oppure null se non trova niente.
+     * Ricerca duplicati di una fattura già presente a sistema.
      */
     private function findExistingAccountingDuplicate(array $accountingData, string $xmlString): ?Accounting
     {
-        $progressivoInvio     = $accountingData['ProgressivoInvio']        ?? null;
-        $fornitoreIdPaese     = $accountingData['FornitoreIdPaese']        ?? null;
-        $fornitoreIdCodice    = $accountingData['FornitoreIdCodice']       ?? null;
-        $fornitoreCodFiscale  = $accountingData['FornitoreCodiceFiscale']  ?? null;
-        $numero               = $accountingData['Numero']                  ?? null;
-        $dataDocumento        = $accountingData['Data']                    ?? null;
+        $progressivoInvio    = $accountingData['ProgressivoInvio']       ?? null;
+        $fornitoreIdPaese    = $accountingData['FornitoreIdPaese']       ?? null;
+        $fornitoreIdCodice   = $accountingData['FornitoreIdCodice']      ?? null;
+        $fornitoreCodFiscale = $accountingData['FornitoreCodiceFiscale'] ?? null;
+        $numero              = $accountingData['Numero']                 ?? null;
+        $dataDocumento       = $accountingData['Data']                   ?? null;
 
-        $query = Accounting::query();
+        $query      = Accounting::query();
         $hasCriteria = false;
 
-        // Criterio 1: ProgressivoInvio + fornitore
+        // 1) ProgressivoInvio + fornitore
         if (!empty($progressivoInvio)) {
             $hasCriteria = true;
-            $query->orWhere(function ($q) use ($progressivoInvio, $fornitoreIdPaese, $fornitoreIdCodice, $fornitoreCodFiscale) {
+            $query->orWhere(function ($q) use (
+                $progressivoInvio,
+                $fornitoreIdPaese,
+                $fornitoreIdCodice,
+                $fornitoreCodFiscale
+            ) {
                 $q->where('ProgressivoInvio', $progressivoInvio);
 
                 if (!empty($fornitoreIdPaese)) {
@@ -131,10 +117,16 @@ class AccountingController extends Controller
             });
         }
 
-        // Criterio 2: Numero + Data + fornitore
+        // 2) Numero + Data + fornitore
         if (!empty($numero) && !empty($dataDocumento)) {
             $hasCriteria = true;
-            $query->orWhere(function ($q) use ($numero, $dataDocumento, $fornitoreCodFiscale, $fornitoreIdCodice, $fornitoreIdPaese) {
+            $query->orWhere(function ($q) use (
+                $numero,
+                $dataDocumento,
+                $fornitoreCodFiscale,
+                $fornitoreIdCodice,
+                $fornitoreIdPaese
+            ) {
                 $q->where('Numero', $numero)
                     ->whereDate('Data', $dataDocumento);
 
@@ -149,7 +141,6 @@ class AccountingController extends Controller
             });
         }
 
-        // Se ho almeno un criterio, provo prima con i campi strutturati
         if ($hasCriteria) {
             $duplicate = $query->first();
             if ($duplicate) {
@@ -157,7 +148,7 @@ class AccountingController extends Controller
             }
         }
 
-        // Criterio 3: hash SHA1 del contenuto XML (xml_originale)
+        // 3) Hash SHA1 dell'intero XML
         $xmlHash = sha1($xmlString);
 
         $row = DB::table('accountings')
@@ -177,7 +168,7 @@ class AccountingController extends Controller
         // ===== 1) Base query con filtri =====
         $base = Accounting::query();
 
-        // Filtri
+        // Stato (header)
         if ($request->filled('stato')) {
             $base->whereRaw('LOWER(`Stato`) = ?', [strtolower($request->string('stato'))]);
         }
@@ -199,6 +190,7 @@ class AccountingController extends Controller
             $base->where('Numero', 'like', '%' . $request->string('numero') . '%');
         }
 
+        // Data documento (da / a)
         if ($request->filled('date_from')) {
             $base->whereDate('Data', '>=', $request->date('date_from')->format('Y-m-d'));
         }
@@ -206,12 +198,33 @@ class AccountingController extends Controller
             $base->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
         }
 
-        // Filtra per tipo documento (TD01 fattura, TD04 nota di credito)
+        // 🔎 NUOVI filtri: data scadenza pagamento (righe dettaglio)
+        if ($request->filled('due_from')) {
+            $base->whereHas('detailAccounting', function ($q) use ($request) {
+                $q->whereDate(
+                    'dataScadenzaPagamento',
+                    '>=',
+                    $request->date('due_from')->format('Y-m-d')
+                );
+            });
+        }
+
+        if ($request->filled('due_to')) {
+            $base->whereHas('detailAccounting', function ($q) use ($request) {
+                $q->whereDate(
+                    'dataScadenzaPagamento',
+                    '<=',
+                    $request->date('due_to')->format('Y-m-d')
+                );
+            });
+        }
+
+        // Tipo documento (TD01 fattura, TD04 nota di credito)
         if ($request->filled('tipo_documento')) {
             $base->where('TipoDocumento', '=', $request->string('tipo_documento'));
         }
 
-        // ===== 2) Totali con gli stessi filtri =====
+        // ===== 2) Totali con gli stessi filtri header (base) =====
         $count = (clone $base)->count();
 
         // Totale documenti con segno coerente al tipo
@@ -225,7 +238,8 @@ class AccountingController extends Controller
         ")->value('s');
 
         // Pagato con segno coerente (le NC sottraggono)
-        $filteredIdsSub = (clone $base)->select('id'); // subquery id filtrati
+        $filteredIdsSub = (clone $base)->select('id');
+
         $sumPaid = DB::table('detail_accountings as d')
             ->joinSub($filteredIdsSub, 'a', 'd.accountingId', '=', 'a.id')
             ->join('accountings as h', 'h.id', '=', 'd.accountingId')
@@ -240,8 +254,7 @@ class AccountingController extends Controller
             ")
             ->value('s');
 
-        // Residuo = Totale documenti - Pagato
-        $sumDue = (float)$sumDocs - (float)$sumPaid;
+        $sumDue = (float) $sumDocs - (float) $sumPaid;
 
         $totals = [
             'count'    => (int) $count,
@@ -252,7 +265,7 @@ class AccountingController extends Controller
 
         // ===== 3) Listing con ordinamento/paginazione =====
         $tableQuery = (clone $base)
-            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+            ->with(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         // Allowlist campi ordinamento
         $allowedSort = [
@@ -264,6 +277,7 @@ class AccountingController extends Controller
             'ImportoTotaleDocumento',
             'Stato',
         ];
+
         $sortField = $request->input('sort_field', 'Progressivo');
         if (!in_array($sortField, $allowedSort, true)) {
             $sortField = 'Progressivo';
@@ -273,6 +287,7 @@ class AccountingController extends Controller
 
         if ($sortField === 'Progressivo') {
             $dir = $sortDirection;
+
             $tableQuery->orderByRaw("
                 CASE
                   WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(RIGHT(`Progressivo`, 2) AS UNSIGNED)
@@ -284,9 +299,14 @@ class AccountingController extends Controller
                   ELSE CAST(`Progressivo` AS UNSIGNED)
                 END {$dir}
             ");
+        } else {
+            // ordinamento normale sugli altri campi
+            $tableQuery->orderBy($sortField, $sortDirection);
         }
 
-        $accountings = $tableQuery->paginate(10)->appends($request->query());
+        $accountings = $tableQuery
+            ->paginate(10)
+            ->appends($request->query());
 
         // ===== 4) Response =====
         return inertia('Accounting/Index', [
@@ -312,31 +332,24 @@ class AccountingController extends Controller
         $importSuccess = 0;
         $importErrors  = [];
 
-        // Per evitare duplicati anche all'interno dello stesso batch di upload
-        $batchSeenLogicalKeys = []; // es. ProgressivoInvio+fornitore, Numero+Data+fornitore
-        $batchSeenXmlHashes   = []; // hash SHA1 dell'XML normalizzato
+        $batchSeenLogicalKeys = [];
+        $batchSeenXmlHashes   = [];
 
         foreach ($files as $file) {
             $fileName = $file->getClientOriginalName();
             Log::info("🔁 Inizio elaborazione file: $fileName");
 
             try {
-                // Leggo i byte del file XML
                 $xmlString = file_get_contents($file);
-
-                // Normalizzo la codifica a UTF-8
                 $xmlString = $this->normalizeXmlEncoding($xmlString);
 
-                // SimpleXML in UTF-8 (LIBXML_NOCDATA per includere i CDATA)
                 $xmlObject = simplexml_load_string($xmlString, 'SimpleXMLElement', LIBXML_NOCDATA);
                 if ($xmlObject === false) {
                     throw new \Exception("XML non valido");
                 }
 
-                // Array PHP dal SimpleXML
                 $arr = json_decode(json_encode($xmlObject), true);
 
-                // ==== Helpers "elastici" ====
                 $first = function ($val) {
                     return (is_array($val) && array_key_exists(0, $val)) ? $val[0] : $val;
                 };
@@ -345,34 +358,28 @@ class AccountingController extends Controller
                     if (is_array($val) && array_key_exists(0, $val)) return $val;
                     return [$val];
                 };
-                // Parsing numeri: supporta "1.234,56" e "1234.56"
                 $toFloat = function ($v) {
                     if ($v === null || $v === '') return null;
-                    $s = trim((string)$v);
+                    $s = trim((string) $v);
                     if (str_contains($s, '.') && str_contains($s, ',')) {
-                        // Es: 1.234,56 (it) -> 1234.56
                         $s = str_replace('.', '', $s);
                         $s = str_replace(',', '.', $s);
                     } elseif (str_contains($s, ',') && !str_contains($s, '.')) {
-                        // Es: 1234,56 -> 1234.56
                         $s = str_replace(',', '.', $s);
                     }
-                    return is_numeric($s) ? (float)$s : null;
+                    return is_numeric($s) ? (float) $s : null;
                 };
 
-                // ==== Header/Body con fallback sicuri ====
                 $header = $arr['FatturaElettronicaHeader'] ?? [];
                 $bodies = $asArray($arr['FatturaElettronicaBody'] ?? []);
                 $body   = $first($bodies);
                 $body   = is_array($body) ? $body : [];
 
-                // ---- Pagamenti (sempre array) ----
                 $dpAll  = $asArray($body['DatiPagamento'] ?? []);
                 $dp     = $first($dpAll);
                 $dp     = is_array($dp) ? $dp : [];
                 $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
 
-                // ---- Cedente/Prestatore + fallback ----
                 $ced  = $header['CedentePrestatore'] ?? [];
                 $da   = $ced['DatiAnagrafici'] ?? [];
                 $ana  = $da['Anagrafica'] ?? [];
@@ -380,29 +387,27 @@ class AccountingController extends Controller
                 $cont = $ced['Contatti'] ?? [];
                 $rea  = $ced['IscrizioneREA'] ?? [];
 
-                $den  = isset($ana['Denominazione']) ? trim((string)$ana['Denominazione']) : '';
-                $nome = isset($ana['Nome']) ? trim((string)$ana['Nome']) : '';
-                $cogn = isset($ana['Cognome']) ? trim((string)$ana['Cognome']) : '';
+                $den  = isset($ana['Denominazione']) ? trim((string) $ana['Denominazione']) : '';
+                $nome = isset($ana['Nome']) ? trim((string) $ana['Nome']) : '';
+                $cogn = isset($ana['Cognome']) ? trim((string) $ana['Cognome']) : '';
                 $fornitoreDisplay = $den !== '' ? $den : (trim($nome . ' ' . $cogn) ?: null);
 
-                // Se IdTrasmittente mancano, prendo IdFiscale del cedente
-                $idPaese  = $header['DatiTrasmissione']['IdTrasmittente']['IdPaese']  ?? ($da['IdFiscaleIVA']['IdPaese']  ?? null);
-                $idCodice = $header['DatiTrasmissione']['IdTrasmittente']['IdCodice'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null);
+                $idPaese  = $header['DatiTrasmissione']['IdTrasmittente']['IdPaese']
+                    ?? ($da['IdFiscaleIVA']['IdPaese'] ?? null);
+                $idCodice = $header['DatiTrasmissione']['IdTrasmittente']['IdCodice']
+                    ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null);
 
-                // ---- Documento ----
                 $dgd = $body['DatiGenerali']['DatiGeneraliDocumento'] ?? [];
 
                 $rawCausale = $dgd['Causale'] ?? null;
                 if (is_array($rawCausale)) {
-                    // Se più <Causale>, uniscile su più righe
-                    $rawCausale = implode("\n", array_map(fn($s) => is_scalar($s) ? (string)$s : json_encode($s), $rawCausale));
+                    $rawCausale = implode("\n", array_map(fn ($s) => is_scalar($s) ? (string) $s : json_encode($s), $rawCausale));
                 } elseif (!is_null($rawCausale) && !is_scalar($rawCausale)) {
                     $rawCausale = json_encode($rawCausale);
                 }
 
-                // ---- Dati Beni/Servizi (prima riga + riepilogo) ----
-                $dbs   = $body['DatiBeniServizi'] ?? [];
-                $linee = $asArray($dbs['DettaglioLinee'] ?? []);
+                $dbs       = $body['DatiBeniServizi'] ?? [];
+                $linee     = $asArray($dbs['DettaglioLinee'] ?? []);
                 $firstLine = $first($linee) ?? null;
                 $firstLine = is_array($firstLine) ? $firstLine : [];
 
@@ -412,35 +417,41 @@ class AccountingController extends Controller
                 $sumSpeseAcc   = 0.0;
                 $aliquote      = [];
                 $riepEsig      = null;
+
                 foreach ($riep as $r) {
-                    $sumImponibile += (float)($r['ImponibileImporto'] ?? 0);
-                    $sumImposta    += (float)($r['Imposta'] ?? 0);
-                    $sumSpeseAcc   += (float)($r['SpeseAccessorie'] ?? 0);
+                    $sumImponibile += (float) ($r['ImponibileImporto'] ?? 0);
+                    $sumImposta    += (float) ($r['Imposta'] ?? 0);
+                    $sumSpeseAcc   += (float) ($r['SpeseAccessorie'] ?? 0);
                     if (isset($r['AliquotaIVA'])) {
-                        $aliquote[] = (string)$r['AliquotaIVA'];
+                        $aliquote[] = (string) $r['AliquotaIVA'];
                     }
                     if (!$riepEsig && !empty($r['EsigibilitaIVA'])) {
                         $riepEsig = $r['EsigibilitaIVA'];
                     }
                 }
+
                 $aliquotaUniforme = (count(array_unique($aliquote)) === 1) ? ($aliquote[0] ?? null) : null;
 
-                // ---- Cerca riga "bollo" (descrizione) ----
                 $bollo = null;
                 foreach ($linee as $ln) {
-                    $descr = isset($ln['Descrizione']) ? mb_strtolower(trim((string)$ln['Descrizione'])) : '';
-                    if ($descr !== '' && preg_match('/\bbollo\b|marca\s+da\s+bollo|imposta\s+di\s+bollo|rimborso\s+spese\s+di\s+bollo/u', $descr)) {
+                    $descr = isset($ln['Descrizione']) ? mb_strtolower(trim((string) $ln['Descrizione'])) : '';
+                    if (
+                        $descr !== '' &&
+                        preg_match(
+                            '/\bbollo\b|marca\s+da\s+bollo|imposta\s+di\s+bollo|rimborso\s+spese\s+di\s+bollo/u',
+                            $descr
+                        )
+                    ) {
                         $bollo = $ln;
                         break;
                     }
                 }
 
-                // ---- Codici articolo (se esistono) ----
                 $codArtTipo1 = $codArtVal1 = $codArtTipo2 = $codArtVal2 = null;
                 if (!empty($firstLine['CodiceArticolo'])) {
                     $codes = $firstLine['CodiceArticolo'];
                     if (isset($codes['CodiceTipo']) || isset($codes['CodiceValore'])) {
-                        $codes = [$codes]; // wrap singolo
+                        $codes = [$codes];
                     }
                     $codes = array_values($codes);
                     if (isset($codes[0]) && is_array($codes[0])) {
@@ -453,7 +464,6 @@ class AccountingController extends Controller
                     }
                 }
 
-                // ---- Descrizione prima riga: normalizzazione e trunc a 255 ----
                 $descrizioneLinea = $firstLine['Descrizione'] ?? null;
                 if (is_array($descrizioneLinea)) {
                     $descrizioneLinea = $this->flattenXmlValue($descrizioneLinea);
@@ -467,15 +477,12 @@ class AccountingController extends Controller
                     }
                 }
 
-                // ==== Build array insert (retro-compat + extra sicuri) ====
                 $Accounting_array = [
-                    // Trasmissione
                     'ProgressivoInvio'    => $header['DatiTrasmissione']['ProgressivoInvio'] ?? null,
                     'FormatoTrasmissione' => $header['DatiTrasmissione']['FormatoTrasmissione'] ?? null,
                     'FornitoreIdPaese'    => $idPaese,
                     'FornitoreIdCodice'   => $idCodice,
 
-                    // Cedente/Prestatore
                     'FornitoreCodiceFiscale' => $da['CodiceFiscale'] ?? ($da['IdFiscaleIVA']['IdCodice'] ?? null),
                     'FornitoreNome'          => $fornitoreDisplay,
 
@@ -493,14 +500,12 @@ class AccountingController extends Controller
                     'SocioUnicoRea'          => $rea['SocioUnico'] ?? null,
                     'StatoLiquidazioneRea'   => $rea['StatoLiquidazione'] ?? null,
 
-                    // Documento
-                    'TipoDocumento'            => $dgd['TipoDocumento'] ?? null,
-                    'Divisa'                   => $dgd['Divisa'] ?? null,
-                    'Data'                     => $dgd['Data'] ?? null,
-                    'Numero'                   => $dgd['Numero'] ?? null,
-                    'ImportoTotaleDocumento'   => $dgd['ImportoTotaleDocumento'] ?? null,
+                    'TipoDocumento'          => $dgd['TipoDocumento'] ?? null,
+                    'Divisa'                 => $dgd['Divisa'] ?? null,
+                    'Data'                   => $dgd['Data'] ?? null,
+                    'Numero'                 => $dgd['Numero'] ?? null,
+                    'ImportoTotaleDocumento' => $dgd['ImportoTotaleDocumento'] ?? null,
 
-                    // Prima riga bene/servizio
                     'CodiceArticoloTipo1'   => $codArtTipo1,
                     'CodiceArticoloValore1' => $codArtVal1,
                     'CodiceArticoloTipo2'   => $codArtTipo2,
@@ -512,32 +517,26 @@ class AccountingController extends Controller
                     'PrezzoTotale'          => $firstLine['PrezzoTotale']   ?? null,
                     'AliquotaIVA'           => $firstLine['AliquotaIVA']    ?? null,
 
-                    // Riepilogo
                     'RiepilogoAliquotaIVA'       => $aliquotaUniforme,
-                    'RiepilogoSpeseAccessorie'   => (string)$sumSpeseAcc,
-                    'RiepilogoImponibileImporto' => (string)$sumImponibile,
-                    'RiepilogoImposta'           => (string)$sumImposta,
+                    'RiepilogoSpeseAccessorie'   => (string) $sumSpeseAcc,
+                    'RiepilogoImponibileImporto' => (string) $sumImponibile,
+                    'RiepilogoImposta'           => (string) $sumImposta,
                     'RiepilogoEsigibilitaIVA'    => $riepEsig,
 
-                    // Pagamenti header
-                    'CondizioniPagamento'      => $dp['CondizioniPagamento'] ?? null,
-                    'ModalitaPagamento1'       => $detPag[0]['ModalitaPagamento']     ?? null,
-                    'DataScadenzaPagamento1'   => $detPag[0]['DataScadenzaPagamento'] ?? null,
-                    'ImportoPagamento1'        => $detPag[0]['ImportoPagamento']      ?? null,
-                    'ModalitaPagamento2'       => $detPag[1]['ModalitaPagamento']     ?? null,
-                    'DataScadenzaPagamento2'   => $detPag[1]['DataScadenzaPagamento'] ?? null,
-                    'ImportoPagamento2'        => $detPag[1]['ImportoPagamento']      ?? null,
+                    'CondizioniPagamento'    => $dp['CondizioniPagamento'] ?? null,
+                    'ModalitaPagamento1'     => $detPag[0]['ModalitaPagamento']     ?? null,
+                    'DataScadenzaPagamento1' => $detPag[0]['DataScadenzaPagamento'] ?? null,
+                    'ImportoPagamento1'      => $detPag[0]['ImportoPagamento']      ?? null,
+                    'ModalitaPagamento2'     => $detPag[1]['ModalitaPagamento']     ?? null,
+                    'DataScadenzaPagamento2' => $detPag[1]['DataScadenzaPagamento'] ?? null,
+                    'ImportoPagamento2'      => $detPag[1]['ImportoPagamento']      ?? null,
 
-                    // Tracking
                     'Stato'         => 'aperta',
                     'xml_originale' => $xmlString,
-                    'imported_at'   => now(),   // Carbon, compatibile con colonna DATETIME/TIMESTAMP
-
-                    // Note / causale
+                    'imported_at'   => now(),
                     'Note'          => $rawCausale ?: null,
                 ];
 
-                // --- PRIMO: controllo se esiste già in DB una fattura equivalente ---
                 $existing = $this->findExistingAccountingDuplicate($Accounting_array, $xmlString);
                 if ($existing) {
                     Log::warning("⛔ [$fileName] Fattura già importata (id={$existing->id}). Import saltato.");
@@ -547,13 +546,11 @@ class AccountingController extends Controller
                         'error' => "Fattura già presente a sistema (id {$existing->id}). Importazione ignorata.",
                     ];
 
-                    continue; // passa al prossimo file
+                    continue;
                 }
 
-                // --- SECONDO: controllo duplicato all'interno dello stesso batch ---
                 $batchKeys = [];
 
-                // Key basata su ProgressivoInvio + fornitore
                 if (!empty($Accounting_array['ProgressivoInvio'])) {
                     $batchKeys[] = 'PI|' . $Accounting_array['ProgressivoInvio']
                         . '|' . ($Accounting_array['FornitoreIdPaese'] ?? '')
@@ -561,7 +558,6 @@ class AccountingController extends Controller
                         . '|' . ($Accounting_array['FornitoreCodiceFiscale'] ?? '');
                 }
 
-                // Key basata su Numero + Data + fornitore
                 if (!empty($Accounting_array['Numero']) && !empty($Accounting_array['Data'])) {
                     $batchKeys[] = 'ND|' . $Accounting_array['Numero']
                         . '|' . $Accounting_array['Data']
@@ -569,7 +565,7 @@ class AccountingController extends Controller
                         . '|' . ($Accounting_array['FornitoreIdPaese'] ?? '');
                 }
 
-                $xmlHash = sha1($xmlString);
+                $xmlHash         = sha1($xmlString);
                 $isBatchDuplicate = false;
 
                 foreach ($batchKeys as $k) {
@@ -594,7 +590,6 @@ class AccountingController extends Controller
                     continue;
                 }
 
-                // Se non era duplicata nel batch, memorizzo le chiavi viste
                 foreach ($batchKeys as $k) {
                     if (!empty($k)) {
                         $batchSeenLogicalKeys[$k] = true;
@@ -602,9 +597,8 @@ class AccountingController extends Controller
                 }
                 $batchSeenXmlHashes[$xmlHash] = true;
 
-                // --- Riga bollo (se presente) -> campi migration ---
                 if ($bollo) {
-                    $Accounting_array['BolloLineaNumero']      = isset($bollo['NumeroLinea']) ? (int)$bollo['NumeroLinea'] : null;
+                    $Accounting_array['BolloLineaNumero']      = isset($bollo['NumeroLinea']) ? (int) $bollo['NumeroLinea'] : null;
                     $Accounting_array['BolloLineaDescrizione'] = $bollo['Descrizione'] ?? null;
                     $Accounting_array['BolloPrezzoUnitario']   = $toFloat($bollo['PrezzoUnitario'] ?? null);
                     $Accounting_array['BolloPrezzoTotale']     = $toFloat($bollo['PrezzoTotale'] ?? null);
@@ -620,30 +614,25 @@ class AccountingController extends Controller
                     ]);
                 }
 
-                // --- Segno coerente su TD04 (note di credito) ---
-                $rawTotal = (float)($Accounting_array['ImportoTotaleDocumento'] ?? 0);
+                $rawTotal = (float) ($Accounting_array['ImportoTotaleDocumento'] ?? 0);
                 $isCredit = in_array($Accounting_array['TipoDocumento'], self::CREDIT_NOTE_TYPES, true);
                 $Accounting_array['ImportoTotaleDocumento'] = $isCredit ? -abs($rawTotal) : abs($rawTotal);
 
-                // --- Obbligatorio minimo: ProgressivoInvio ---
                 if (empty($Accounting_array['ProgressivoInvio'])) {
                     throw new \Exception("Campo obbligatorio mancante: ProgressivoInvio");
                 }
 
-                // --- Progressivo auto (MAX + 1 per anno YY) ---
                 if (empty($Accounting_array['Progressivo'])) {
-                    $yy = now('Europe/Rome')->format('y'); // es. "25"
+                    $yy = now('Europe/Rome')->format('y');
 
-                    // Prende il massimo N SOLO dei progressivi del tipo "N_YY" (quell'anno)
                     $max = Accounting::whereRaw("`Progressivo` REGEXP ?", ["^[0-9]+_{$yy}$"])
                         ->selectRaw("MAX(CAST(SUBSTRING_INDEX(`Progressivo`, '_', 1) AS UNSIGNED)) as m")
                         ->value('m');
 
-                    $next = ((int)($max ?? 0)) + 1;
-                    $Accounting_array['Progressivo'] = $next . '_' . $yy; // es. "1_25"
+                    $next                          = ((int) ($max ?? 0)) + 1;
+                    $Accounting_array['Progressivo'] = $next . '_' . $yy;
                 }
 
-                // --- Sanificazione finale: nessun campo deve restare array ---
                 foreach ($Accounting_array as $key => $value) {
                     if (is_array($value)) {
                         Log::warning("⚠️ [$fileName] Campo {$key} è array, verrà serializzato in stringa.");
@@ -651,7 +640,6 @@ class AccountingController extends Controller
                     }
                 }
 
-                // --- Warning campi vuoti ---
                 $campiVuoti = [];
                 foreach ($Accounting_array as $k => $v) {
                     if ($v === null || (is_string($v) && trim($v) === '')) {
@@ -662,14 +650,11 @@ class AccountingController extends Controller
                     Log::warning("⚠️ [$fileName] Campi mancanti/empty: " . implode(', ', $campiVuoti));
                 }
 
-                // --- Salva testata ---
                 $savedAccounting = Accounting::create($Accounting_array);
 
-                // --- Salva righe pagamento ---
                 foreach ($detPag as $pagamento) {
                     $mp = $pagamento['ModalitaPagamento'] ?? null;
 
-                    // mapping MP -> dominio interno (opzionale, non rompe retro-compat)
                     $tipo = match ($mp) {
                         'MP05' => 'bonifico',
                         'MP12', 'MP13' => 'riba',
@@ -682,7 +667,7 @@ class AccountingController extends Controller
                         'accountingId'          => $savedAccounting->id,
                         'modalitaPagamento'     => $mp,
                         'dataScadenzaPagamento' => $pagamento['DataScadenzaPagamento'] ?? null,
-                        'importoPagamento'      => isset($pagamento['ImportoPagamento']) ? (float)$pagamento['ImportoPagamento'] : null,
+                        'importoPagamento'      => isset($pagamento['ImportoPagamento']) ? (float) $pagamento['ImportoPagamento'] : null,
                         'stato'                 => 'aperta',
                         'tipoPagamento'         => $tipo,
                         'note'                  => null,
@@ -708,7 +693,7 @@ class AccountingController extends Controller
 
     public function show(Accounting $accounting)
     {
-        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+        $accounting->load(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Show', [
             'accounting' => $accounting,
@@ -718,21 +703,20 @@ class AccountingController extends Controller
 
     public function edit(Accounting $accounting)
     {
-        // carica le righe pagamento ordinate
-        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+        $accounting->load(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Edit', [
-            'accounting' => new AccountingResource($accounting),
+            'accounting'        => new AccountingResource($accounting),
             'detailAccountings' => $accounting->detailAccounting->map(function ($d) {
                 return [
-                    'id' => $d->id,
-                    'accountingId' => $d->accountingId,
-                    'stato' => $d->stato,
-                    'modalitaPagamento' => $d->modalitaPagamento,
-                    'tipoPagamento' => $d->tipoPagamento,
+                    'id'                  => $d->id,
+                    'accountingId'        => $d->accountingId,
+                    'stato'               => $d->stato,
+                    'modalitaPagamento'   => $d->modalitaPagamento,
+                    'tipoPagamento'       => $d->tipoPagamento,
                     'dataScadenzaPagamento' => $d->dataScadenzaPagamento,
-                    'importoPagamento' => $d->importoPagamento,
-                    'note' => $d->note,
+                    'importoPagamento'    => $d->importoPagamento,
+                    'note'                => $d->note,
                 ];
             }),
             'backQuery' => request()->query() ?: null,
@@ -749,7 +733,11 @@ class AccountingController extends Controller
         $validated = $request->validated();
         $accounting->update($validated);
 
-        return redirect()->route('accounting.index')->with('success', 'Progressivo modificato');
+        $query = $request->query();
+
+        return redirect()
+            ->route('accounting.index', $query)
+            ->with('success', 'Progressivo modificato');
     }
 
     public function destroy(Accounting $accounting)
@@ -763,37 +751,32 @@ class AccountingController extends Controller
         return inertia("Accounting/Import");
     }
 
-    // === Update “generico” (inline/field-level)
     public function patchField(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
-            'Progressivo'              => ['sometimes', 'nullable', 'string'],
-            'ProgressivoInvio'         => ['sometimes', 'nullable', 'string'],
-            'FornitoreNome'            => ['sometimes', 'nullable', 'string'],
-            'Numero'                   => ['sometimes', 'nullable', 'string'],
-            'Data'                     => ['sometimes', 'nullable', 'date'],
-            'ImportoTotaleDocumento'   => ['sometimes', 'nullable', 'numeric'],
-            'TipoDocumento'            => ['sometimes', 'required', 'in:TD01,TD04'],
-            'Stato'                    => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
-            'Note'                     => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'Progressivo'            => ['sometimes', 'nullable', 'string'],
+            'ProgressivoInvio'       => ['sometimes', 'nullable', 'string'],
+            'FornitoreNome'          => ['sometimes', 'nullable', 'string'],
+            'Numero'                 => ['sometimes', 'nullable', 'string'],
+            'Data'                   => ['sometimes', 'nullable', 'date'],
+            'ImportoTotaleDocumento' => ['sometimes', 'nullable', 'numeric'],
+            'TipoDocumento'          => ['sometimes', 'required', 'in:TD01,TD04'],
+            'Stato'                  => ['sometimes', 'required', 'in:aperta,pagata,parziale'],
+            'Note'                   => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
-        // Tipo effettivo (nuovo o esistente) per capire il segno
-        $tipo = $data['TipoDocumento'] ?? $accounting->TipoDocumento;
+        $tipo    = $data['TipoDocumento'] ?? $accounting->TipoDocumento;
         $isCredit = in_array($tipo, self::CREDIT_NOTE_TYPES, true);
 
-        // Se l'importo arriva nel payload, normalizza il segno subito
         if (array_key_exists('ImportoTotaleDocumento', $data) && $data['ImportoTotaleDocumento'] !== null) {
-            $amount = abs((float)$data['ImportoTotaleDocumento']);
+            $amount = abs((float) $data['ImportoTotaleDocumento']);
             $data['ImportoTotaleDocumento'] = $isCredit ? -$amount : $amount;
         }
 
-        // Aggiorna i campi passati
         $accounting->update($data);
 
-        // Se è cambiato solo il tipo, riallinea il segno dell'importo già in DB
         if (!array_key_exists('ImportoTotaleDocumento', $data) && array_key_exists('TipoDocumento', $data)) {
-            $amount = abs((float)$accounting->ImportoTotaleDocumento);
+            $amount = abs((float) $accounting->ImportoTotaleDocumento);
             $accounting->update([
                 'ImportoTotaleDocumento' => $isCredit ? -$amount : $amount,
             ]);
@@ -802,7 +785,7 @@ class AccountingController extends Controller
         return back()->with('success', 'Fattura aggiornata');
     }
 
-    // === CRUD delle righe pagamento
+    // === CRUD righe pagamento
     public function storeDetail(Request $request, Accounting $accounting)
     {
         $data = $request->validate([
@@ -840,21 +823,20 @@ class AccountingController extends Controller
         return back()->with('success', 'Riga pagamento eliminata');
     }
 
-    // === Nuovo: pagina di edit della singola riga pagamento
     public function editDetail(DetailAccounting $detail)
     {
         $detail->loadMissing('accounting');
 
         return inertia('DetailAccounting/Edit', [
             'detailAccounting' => [
-                'id' => $detail->id,
-                'accountingId' => $detail->accountingId,
-                'stato' => $detail->stato,
-                'modalitaPagamento' => $detail->modalitaPagamento,
-                'tipoPagamento' => $detail->tipoPagamento,
+                'id'                  => $detail->id,
+                'accountingId'        => $detail->accountingId,
+                'stato'               => $detail->stato,
+                'modalitaPagamento'   => $detail->modalitaPagamento,
+                'tipoPagamento'       => $detail->tipoPagamento,
                 'dataScadenzaPagamento' => $detail->dataScadenzaPagamento,
-                'importoPagamento' => $detail->importoPagamento,
-                'note' => $detail->note,
+                'importoPagamento'    => $detail->importoPagamento,
+                'note'                => $detail->note,
             ],
             'statusOptions' => ['aperta', 'pagata', 'parziale'],
             'backQuery'     => request()->query() ?: null,
@@ -874,12 +856,12 @@ class AccountingController extends Controller
             },
             $filename,
             [
-                'Content-Type'              => 'application/xml; charset=UTF-8',
-                'Content-Disposition'       => 'attachment; filename="' . $filename . '"',
-                'X-Content-Type-Options'    => 'nosniff',
-                'Cache-Control'             => 'no-store, no-cache, must-revalidate, max-age=0',
-                'Pragma'                    => 'no-cache',
-                'Expires'                   => '0',
+                'Content-Type'        => 'application/xml; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma'              => 'no-cache',
+                'Expires'             => '0',
             ]
         );
     }

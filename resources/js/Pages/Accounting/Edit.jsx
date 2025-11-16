@@ -36,6 +36,13 @@ const fmtDateIT = (val) => {
   return s;
 };
 
+// Etichetta stato per la TESTATA: "aperta" -> "Da saldare"
+const accountingStatusLabel = (status) => {
+  if (!status) return "";
+  if (status === "aperta") return "Da saldare";
+  return ACCOUNTING_STATUS_TEXT_MAP[status] || status;
+};
+
 export default function Edit({ auth, accounting, detailAccountings = [], success, backQuery = null }) {
   const a = accounting?.data ?? accounting ?? {};
 
@@ -45,7 +52,7 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
     ProgressivoInvio: a?.ProgressivoInvio ?? "",
     FornitoreNome: a?.FornitoreNome ?? "",
     Numero: a?.Numero ?? "",
-    Note: a?.Note ?? "", // ⬅️ nuovo campo in input singola riga
+    Note: a?.Note ?? "", // nuovo campo in input singola riga
     Data: a?.Data ?? "",
     ImportoTotaleDocumento: a?.ImportoTotaleDocumento ?? "",
     Stato: a?.Stato ?? "",
@@ -54,8 +61,14 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
   const onSubmit = (e) => {
     e.preventDefault();
     if (!a?.id) return;
+
+    // Includo backQuery nella route update per mantenere page + filtri
+    const params = backQuery ? { accounting: a.id, ...backQuery } : { accounting: a.id };
+
     // update "classico" (il segno viene gestito dal controller quando si cambia TipoDocumento via patchField)
-    put(route("accounting.update", a.id), { preserveScroll: true });
+    put(route("accounting.update", params), {
+      preserveScroll: true,
+    });
   };
 
   // dettagli
@@ -186,7 +199,7 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                 {errors.Note && <p className="mt-1 text-sm text-red-600">{errors.Note}</p>}
               </div>
 
-              {/* --- RIGA: Data | Stato (Data al posto del vecchio Totale) --- */}
+              {/* --- RIGA: Data | Stato --- */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
                 <TextInput
@@ -203,15 +216,19 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                   <option value="">— seleziona —</option>
                   {Object.keys(ACCOUNTING_STATUS_TEXT_MAP).map((key) => (
                     <option key={key} value={key}>
-                      {ACCOUNTING_STATUS_TEXT_MAP[key]}
+                      {accountingStatusLabel(key)}
                     </option>
                   ))}
                 </SelectInput>
                 {errors.Stato && <p className="mt-1 text-sm text-red-600">{errors.Stato}</p>}
                 {data.Stato && (
                   <div className="mt-2 inline-flex items-center gap-2">
-                    <span className={`inline-block rounded px-2 py-0.5 text-xs ${ACCOUNTING_STATUS_CLASS_MAP[data.Stato]}`}>
-                      {ACCOUNTING_STATUS_TEXT_MAP[data.Stato]}
+                    <span
+                      className={
+                        `inline-block rounded px-2 py-0.5 text-xs ${ACCOUNTING_STATUS_CLASS_MAP[data.Stato]}`
+                      }
+                    >
+                      {accountingStatusLabel(data.Stato)}
                     </span>
                   </div>
                 )}
@@ -241,7 +258,10 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
             </div>
 
             <div className="mt-8 flex items-center justify-end gap-3">
-              <Link href={backHref} className="rounded-md border bg-white px-4 py-2 text-sm shadow-sm hover:bg-gray-50">
+              <Link
+                href={backHref}
+                className="rounded-md border bg-white px-4 py-2 text-sm shadow-sm hover:bg-gray-50"
+              >
                 Annulla
               </Link>
               <button
@@ -285,7 +305,11 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                       <tr key={row.id} className="border-t">
                         <td className="px-4 py-2">
                           {row.stato ? (
-                            <span className={"px-2 py-1 rounded text-white " + ACCOUNTING_STATUS_CLASS_MAP[row.stato]}>
+                            <span
+                              className={
+                                "px-2 py-1 rounded text-white " + ACCOUNTING_STATUS_CLASS_MAP[row.stato]
+                              }
+                            >
                               {ACCOUNTING_STATUS_TEXT_MAP[row.stato]}
                             </span>
                           ) : (

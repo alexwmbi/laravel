@@ -7,8 +7,8 @@ export const WORK_STATUS_TEXT_MAP = {
   archived: "Archiviato",
 };
 export const ACCOUNTING_STATUS_CLASS_MAP = {
-  aperta: "bg-green-500",
-  pagata: "bg-red-500",
+  pagata: "bg-green-500",
+  aperta: "bg-red-500",
   parziale: "bg-yellow-500",
 };
 export const ACCOUNTING_STATUS_TEXT_MAP = {
