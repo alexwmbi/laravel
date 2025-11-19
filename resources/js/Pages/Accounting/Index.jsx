@@ -42,31 +42,6 @@ const fmtDateIT = (val) => {
   return s;
 };
 
-// === Calcola lo stato "di testata" in base alle righe pagamento
-const computeAccountingStatus = (accounting) => {
-  const details = accounting?.detail_accounting || [];
-
-  if (!details.length) {
-    return accounting.Stato || "aperta";
-  }
-
-  const statuses = details
-    .map((d) => d.stato)
-    .filter((s) => typeof s === "string" && s.length > 0);
-
-  if (!statuses.length) {
-    return accounting.Stato || "aperta";
-  }
-
-  const allPaid = statuses.every((s) => s === "pagata");
-  const allOpen = statuses.every((s) => s === "aperta");
-
-  if (allPaid) return "pagata";
-  if (allOpen) return "aperta";
-
-  return "parziale";
-};
-
 // === Calcola quanto è stato pagato e quanto resta da pagare per una fattura
 const computePaidSummary = (accounting) => {
   const details = accounting?.detail_accounting || [];
@@ -105,10 +80,31 @@ const computePaidSummary = (accounting) => {
   return { total, paid, due };
 };
 
-// Testo custom per lo stato di testata: "aperta" -> "Da saldare"
+// === Calcola lo stato "di testata" in base a Totale / Pagato / Da pagare
+const computeAccountingStatus = (accounting) => {
+  const { total, paid, due } = computePaidSummary(accounting);
+  const EPS = 0.005; // tolleranza centesimi
+
+  // Pagato ≈ 0  => Da saldare
+  if (Math.abs(paid) < EPS) {
+    return "aperta";
+  }
+
+  // Da pagare ≈ 0 => Pagata
+  if (Math.abs(due) < EPS) {
+    return "pagata";
+  }
+
+  // Negli altri casi => parzialmente saldata
+  return "parziale";
+};
+
+// Testo custom per lo stato di testata
 const accountingStatusLabel = (status) => {
   if (!status) return "";
   if (status === "aperta") return "Da saldare";
+  if (status === "parziale") return "Parzialmente";
+  // "pagata" e altri eventuali stati vanno dal map
   return ACCOUNTING_STATUS_TEXT_MAP[status] || status;
 };
 
@@ -292,7 +288,7 @@ export default function Index({
                   />
                 </div>
 
-                {/* 🔎 Scadenza da */}
+                {/* Scadenza da */}
                 <div>
                   <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
                     Scadenza da
@@ -307,7 +303,7 @@ export default function Index({
                   />
                 </div>
 
-                {/* 🔎 Scadenza a */}
+                {/* Scadenza a */}
                 <div>
                   <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
                     Scadenza a
@@ -536,7 +532,7 @@ export default function Index({
                     <td colSpan={7} className="h-3"></td>
                   </tr>
 
-                  {accountings.data.map((a) => {
+                  {accountings.data.map((a, index) => {
                     const headerStatus = computeAccountingStatus(a);
                     const { total, paid, due } = computePaidSummary(a);
                     const hasDetails =
@@ -545,230 +541,287 @@ export default function Index({
 
                     return (
                       <React.Fragment key={a.id}>
-                        {/* Riga documento */}
-                        <tr className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-50">
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {a.Progressivo}
-                          </td>
-                          <td className="px-3 py-2">{a.FornitoreNome}</td>
-
-                          {/* Numero + badge NC */}
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {a.Numero}
-                            {a.TipoDocumento === "TD04" && (
-                              <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 border border-pink-200">
-                                NC
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Data gg/mm/aaaa */}
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {fmtDateIT(a.Data)}
-                          </td>
-
-                          {/* Totale documento (può essere negativo per NC) */}
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {formatEUR(a.ImportoTotaleDocumento)}
-                          </td>
-
-                          {/* STATO calcolato dalle righe pagamento */}
-                          <td className="px-3 py-2">
-                            <span
-                              className={
-                                "px-2 py-1 rounded text-white " +
-                                ACCOUNTING_STATUS_CLASS_MAP[headerStatus]
-                              }
-                            >
-                              {accountingStatusLabel(headerStatus)}
-                            </span>
-                          </td>
-
-                          {/* AZIONI */}
-                          <td className="px-3 py-2 text-nowrap">
-                            <div className="flex gap-2">
-                              <Link
-                                href={route("accounting.show", {
-                                  accounting: a.id,
-                                  ...queryParams,
-                                })}
-                                className="text-emerald-600"
-                              >
-                                <EyeIcon className="w-5 h-5" />
-                              </Link>
-                              <Link
-                                href={route("accounting.edit", {
-                                  accounting: a.id,
-                                  ...queryParams,
-                                })}
-                                className="text-blue-600"
-                              >
-                                <PencilSquareIcon className="w-5 h-5" />
-                              </Link>
-                              <button
-                                onClick={() => deleteAccounting(a)}
-                                className="text-red-500"
-                              >
-                                <TrashIcon className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Riepilogo Totale / Pagato / Da pagare (se ci sono righe pagamento) */}
-                        {hasDetails && (
+                        {/* Riga nera spessa tra una fattura e l’altra (solo se NON nascondiamo le righe) */}
+                        {!hideDetails && index > 0 && (
                           <tr>
-                            <td
-                              colSpan={7}
-                              className="px-3 pt-1 pb-3 text-xs text-gray-700 dark:text-gray-300 bg-slate-50 dark:bg-slate-900/40 border-b border-dashed border-gray-200 dark:border-gray-700"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex flex-wrap items-center gap-4">
-                                  <span className="font-semibold uppercase tracking-wide">
-                                    Stato pagamenti
-                                  </span>
-                                  <span>
-                                    Totale documento:{" "}
-                                    <span className="font-semibold">
-                                      {formatEUR(total)}
-                                    </span>
-                                  </span>
-                                  <span>
-                                    Pagato:{" "}
-                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                      {formatEUR(paid)}
-                                    </span>
-                                  </span>
-                                  <span>
-                                    Da pagare:{" "}
-                                    <span className="font-semibold text-rose-700 dark:text-rose-400">
-                                      {formatEUR(due)}
-                                    </span>
-                                  </span>
-                                </div>
-                              </div>
+                            <td colSpan={7}>
+                              <div className="h-1 bg-black my-4 rounded-full" />
                             </td>
                           </tr>
                         )}
 
-                        {/* Righe pagamento (nascoste se hideDetails = true) */}
-                        {!hideDetails && hasDetails && (
-                          <tr>
-                            <td colSpan={7} className="pt-2">
-                              <div className="flex justify-between items-center">
-                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                                  Righe pagamento
-                                </div>
-
-                                <button
-                                  onClick={() => addDetailRow(a.id)}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold
-                                              bg-amber-100 text-orange-600 border border-amber-200 shadow-sm
-                                              hover:bg-amber-200 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                                >
-                                  <span className="text-sm leading-none">
-                                    +
-                                  </span>
-                                  Aggiungi riga
-                                </button>
-                              </div>
-
-                              <table className="w-full table-fixed text-center text-sm text-gray-600 dark:text-gray-300 border mt-2 rounded-md overflow-hidden">
+                        <tr>
+                          <td colSpan={7} className="align-top">
+                            <div className="mb-6 rounded-xl border border-sky-100 bg-slate-50/40 px-3 pt-3 pb-4">
+                              <table className="w-full table-fixed text-left text-sm text-gray-600 dark:text-gray-300">
                                 <colgroup>
-                                  <col className="w-[12ch]" />
-                                  <col className="w-[24ch]" />
-                                  <col className="w-[20ch]" />
-                                  <col className="w-[16ch]" />
-                                  <col className="w-[14ch]" />
-                                  <col />
-                                  <col className="w-[10ch]" />
+                                  <col className="w-[12ch]" /> {/* PROGRESSIVO */}
+                                  <col /> {/* FORNITORE */}
+                                  <col className="w-[14ch]" /> {/* NUMERO */}
+                                  <col className="w-[14ch]" /> {/* DATA */}
+                                  <col className="w-[12ch]" /> {/* TOTALE */}
+                                  <col className="w-[12ch]" /> {/* STATO */}
+                                  <col className="w-[10ch]" /> {/* AZIONI */}
                                 </colgroup>
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
-                                  <tr>
-                                    <th className="px-3 py-2">STATO</th>
-                                    <th className="px-3 py-2">
-                                      MODALITÀ PAGAMENTO
-                                    </th>
-                                    <th className="px-3 py-2">
-                                      TIPO PAGAMENTO
-                                    </th>
-                                    <th className="px-3 py-2">
-                                      DATA SCADENZA
-                                    </th>
-                                    <th className="px-3 py-2">IMPORTO</th>
-                                    <th className="px-3 py-2">NOTE</th>
-                                    <th className="px-3 py-2">AZIONI</th>
-                                  </tr>
-                                </thead>
+
                                 <tbody>
-                                  {a.detail_accounting.map((d) => (
-                                    <tr
-                                      key={d.id}
-                                      className="bg-white dark:bg-gray-800"
-                                    >
-                                      <td className="px-3 py-2">
-                                        <span
-                                          className={
-                                            "px-2 py-1 rounded text-white " +
-                                            ACCOUNTING_STATUS_CLASS_MAP[d.stato]
-                                          }
-                                        >
-                                          {
-                                            ACCOUNTING_STATUS_TEXT_MAP[
-                                              d.stato
-                                            ]
-                                          }
+                                  {/* Riga documento */}
+                                  <tr className="border-b dark:border-gray-700 hover:bg-purple-50/50">
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {a.Progressivo}
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      {a.FornitoreNome}
+                                    </td>
+
+                                    {/* Numero + badge NC */}
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {a.Numero}
+                                      {a.TipoDocumento === "TD04" && (
+                                        <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 border border-pink-200">
+                                          NC
                                         </span>
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {d.modalitaPagamento}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {d.tipoPagamento || "-"}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {fmtDateIT(d.dataScadenzaPagamento)}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {formatEUR(
-                                          (a.TipoDocumento === "TD04" ? -1 : 1) *
-                                            Number(d.importoPagamento ?? 0)
-                                        )}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        {d.note || ""}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <div className="flex items-center justify-center gap-2">
-                                          <Link
-                                            href={route(
-                                              "detailaccounting.edit",
-                                              { detail: d.id, ...queryParams }
-                                            )}
-                                            className="text-blue-600 hover:text-blue-800"
-                                            title="Modifica riga"
-                                          >
-                                            <PencilSquareIcon className="w-5 h-5" />
-                                          </Link>
-                                          <button
-                                            onClick={() => deleteDetail(d)}
-                                            className="text-red-500 hover:text-red-700"
-                                            title="Elimina riga"
-                                            aria-label="Elimina riga"
-                                          >
-                                            <TrashIcon className="w-5 h-5" />
-                                          </button>
+                                      )}
+                                    </td>
+
+                                    {/* Data gg/mm/aaaa */}
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {fmtDateIT(a.Data)}
+                                    </td>
+
+                                    {/* Totale documento */}
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {formatEUR(a.ImportoTotaleDocumento)}
+                                    </td>
+
+                                    {/* STATO testata */}
+                                    <td className="px-3 py-2">
+                                      <span
+                                        className={
+                                          "px-2 py-1 rounded text-white " +
+                                          ACCOUNTING_STATUS_CLASS_MAP[
+                                            headerStatus
+                                          ]
+                                        }
+                                      >
+                                        {accountingStatusLabel(headerStatus)}
+                                      </span>
+                                    </td>
+
+                                    {/* AZIONI */}
+                                    <td className="px-3 py-2 text-nowrap">
+                                      <div className="flex gap-2">
+                                        <Link
+                                          href={route("accounting.show", {
+                                            accounting: a.id,
+                                            ...queryParams,
+                                          })}
+                                          className="text-emerald-600"
+                                        >
+                                          <EyeIcon className="w-5 h-5" />
+                                        </Link>
+                                        <Link
+                                          href={route("accounting.edit", {
+                                            accounting: a.id,
+                                            ...queryParams,
+                                          })}
+                                          className="text-blue-600"
+                                        >
+                                          <PencilSquareIcon className="w-5 h-5" />
+                                        </Link>
+                                        <button
+                                          onClick={() => deleteAccounting(a)}
+                                          className="text-red-500"
+                                        >
+                                          <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+
+                                  {/* Riepilogo Totale / Pagato / Da pagare
+                                      - se ci sono righe pagamento (hasDetails)
+                                      - OPPURE se NON ci sono righe ma hideDetails è attivo,
+                                        così “Stato pagamenti” resta visibile nel caso 0 righe */}
+                                  {(hasDetails || (!hasDetails && hideDetails)) && (
+                                    <tr>
+                                      <td
+                                        colSpan={7}
+                                        className="px-3 pt-2 pb-3 text-xs text-gray-700 dark:text-gray-300 bg-slate-50/60 dark:bg-slate-900/40 border-b border-dashed border-gray-200 dark:border-gray-700"
+                                      >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <div className="flex flex-wrap items-center gap-4">
+                                            <span className="font-semibold uppercase tracking-wide">
+                                              Stato pagamenti
+                                            </span>
+                                            <span>
+                                              Totale documento:{" "}
+                                              <span className="font-semibold">
+                                                {formatEUR(total)}
+                                              </span>
+                                            </span>
+                                            <span>
+                                              Pagato:{" "}
+                                              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                                {formatEUR(paid)}
+                                              </span>
+                                            </span>
+                                            <span>
+                                              Da pagare:{" "}
+                                              <span className="font-semibold text-rose-700 dark:text-rose-400">
+                                                {formatEUR(due)}
+                                              </span>
+                                            </span>
+                                          </div>
                                         </div>
                                       </td>
                                     </tr>
-                                  ))}
+                                  )}
+
+                                  {/* RIGHE PAGAMENTO:
+                                      - nascoste COMPLETAMENTE se hideDetails = true
+                                      - se hideDetails = false: sempre mostra intestazione + bottone
+                                        e, solo se hasDetails, anche la tabella */}
+                                  {!hideDetails && (
+                                    <tr>
+                                      <td colSpan={7} className="pt-2">
+                                        <div className="flex justify-between items-center">
+                                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
+                                            Righe pagamento
+                                          </div>
+
+                                          <button
+                                            onClick={() => addDetailRow(a.id)}
+                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold
+                                                        bg-amber-100 text-orange-600 border border-amber-200 shadow-sm
+                                                        hover:bg-amber-200 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                                          >
+                                            <span className="text-sm leading-none">
+                                              +
+                                            </span>
+                                            Aggiungi riga
+                                          </button>
+                                        </div>
+
+                                        {hasDetails && (
+                                          <table className="w-full table-fixed text-center text-sm text-gray-600 dark:text-gray-300 border mt-2 rounded-md overflow-hidden">
+                                            <colgroup>
+                                              <col className="w-[12ch]" />
+                                              <col className="w-[24ch]" />
+                                              <col className="w-[20ch]" />
+                                              <col className="w-[16ch]" />
+                                              <col className="w-[14ch]" />
+                                              <col />
+                                              <col className="w-[10ch]" />
+                                            </colgroup>
+                                            <thead className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
+                                              <tr>
+                                                <th className="px-3 py-2">STATO</th>
+                                                <th className="px-3 py-2">
+                                                  MODALITÀ PAGAMENTO
+                                                </th>
+                                                <th className="px-3 py-2">
+                                                  TIPO PAGAMENTO
+                                                </th>
+                                                <th className="px-3 py-2">
+                                                  DATA SCADENZA
+                                                </th>
+                                                <th className="px-3 py-2">
+                                                  IMPORTO
+                                                </th>
+                                                <th className="px-3 py-2">
+                                                  NOTE
+                                                </th>
+                                                <th className="px-3 py-2">
+                                                  AZIONI
+                                                </th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {a.detail_accounting.map((d) => (
+                                                <tr
+                                                  key={d.id}
+                                                  className="bg-white dark:bg-gray-800"
+                                                >
+                                                  <td className="px-3 py-2">
+                                                    <span
+                                                      className={
+                                                        "px-2 py-1 rounded text-white " +
+                                                        ACCOUNTING_STATUS_CLASS_MAP[d.stato]
+                                                      }
+                                                    >
+                                                      {
+                                                        ACCOUNTING_STATUS_TEXT_MAP[
+                                                          d.stato
+                                                        ]
+                                                      }
+                                                    </span>
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    {d.modalitaPagamento}
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    {d.tipoPagamento || "-"}
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    {fmtDateIT(
+                                                      d.dataScadenzaPagamento
+                                                    )}
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    {formatEUR(
+                                                      (a.TipoDocumento === "TD04"
+                                                        ? -1
+                                                        : 1) *
+                                                        Number(
+                                                          d.importoPagamento ??
+                                                            0
+                                                        )
+                                                    )}
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    {d.note || ""}
+                                                  </td>
+                                                  <td className="px-3 py-2">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                      <Link
+                                                        href={route(
+                                                          "detailaccounting.edit",
+                                                          {
+                                                            detail: d.id,
+                                                            ...queryParams,
+                                                          }
+                                                        )}
+                                                        className="text-blue-600 hover:text-blue-800"
+                                                        title="Modifica riga"
+                                                      >
+                                                        <PencilSquareIcon className="w-5 h-5" />
+                                                      </Link>
+                                                      <button
+                                                        onClick={() =>
+                                                          deleteDetail(d)
+                                                        }
+                                                        className="text-red-500 hover:text-red-700"
+                                                        title="Elimina riga"
+                                                        aria-label="Elimina riga"
+                                                      >
+                                                        <TrashIcon className="w-5 h-5" />
+                                                      </button>
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
                                 </tbody>
                               </table>
-
-                              <div className="mt-8 mb-10 h-[3px] bg-black/80 rounded"></div>
-                            </td>
-                          </tr>
-                        )}
+                            </div>
+                          </td>
+                        </tr>
                       </React.Fragment>
                     );
                   })}

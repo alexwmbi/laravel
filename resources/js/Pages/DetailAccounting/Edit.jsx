@@ -8,20 +8,25 @@ import { ArrowUturnLeftIcon, PencilSquareIcon } from "@heroicons/react/16/solid"
 const toDateInput = (v) => {
   if (!v) return "";
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
+  return Number.isNaN(d.getTime())
+    ? String(v).slice(0, 10)
+    : d.toISOString().slice(0, 10);
 };
 
 export default function Edit({
   auth,
   detailAccounting,
-  statusOptions = [],
+  statusOptions = [],      // non lo usiamo più, ma lo mantengo per compatibilità
   paymentTypeOptions = [], // { value, label }
-  backQuery = {},          // ⬅️ arriva dal controller: request()->query()
+  backQuery = {},          // arriva dal controller: request()->query()
   success,
 }) {
   const d = detailAccounting?.data ?? detailAccounting ?? {};
 
-  // fallback locale nel caso non arrivino dal backend
+  // solo due stati ammessi: aperta / pagata
+  const allowedStatus = ["aperta", "pagata"];
+
+  // fallback locale per i tipi pagamento nel caso non arrivino dal backend
   const paymentOpts = paymentTypeOptions?.length
     ? paymentTypeOptions
     : [
@@ -40,14 +45,16 @@ export default function Edit({
     note: d.note ?? "",
   });
 
-  const goBackToList = () => router.get(route("accounting.index", backQuery || {}));
+  const goBackToList = () =>
+    router.get(route("accounting.index", backQuery || {}));
 
   const onSubmit = (e) => {
     e.preventDefault();
     if (!d?.id) return;
+
     put(route("detailaccounting.update", d.id), {
       preserveScroll: true,
-      onSuccess: goBackToList, // ⬅️ torna a /accounting con gli stessi query param (es. ?page=2)
+      onSuccess: goBackToList, // torna a /accounting con gli stessi query param (es. ?page=2)
     });
   };
 
@@ -59,7 +66,8 @@ export default function Edit({
         {/* HEADER */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">
-            Modifica riga {d?.id ? <span className="text-gray-400">#{d.id}</span> : null}
+            Modifica riga{" "}
+            {d?.id ? <span className="text-gray-400">#{d.id}</span> : null}
           </h1>
 
           <Link
@@ -83,36 +91,55 @@ export default function Edit({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* STATO */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Stato</label>
-                <SelectInput value={data.stato} onChange={(e) => setData("stato", e.target.value)}>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Stato
+                </label>
+                <SelectInput
+                  value={data.stato}
+                  onChange={(e) => setData("stato", e.target.value)}
+                >
                   <option value="">— seleziona —</option>
-                  {(statusOptions ?? []).map((v) => (
+                  {allowedStatus.map((v) => (
                     <option key={v} value={v}>
-                      {v}
+                      {v === "aperta" ? "aperta" : "pagata"}
                     </option>
                   ))}
                 </SelectInput>
-                {errors.stato && <p className="mt-1 text-sm text-red-600">{errors.stato}</p>}
+                {errors.stato && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.stato}
+                  </p>
+                )}
               </div>
 
               {/* MODALITÀ PAGAMENTO (libera) */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Modalità Pagamento</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Modalità Pagamento
+                </label>
                 <TextInput
                   value={data.modalitaPagamento}
-                  onChange={(e) => setData("modalitaPagamento", e.target.value)}
+                  onChange={(e) =>
+                    setData("modalitaPagamento", e.target.value)
+                  }
                 />
                 {errors.modalitaPagamento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.modalitaPagamento}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.modalitaPagamento}
+                  </p>
                 )}
               </div>
 
               {/* TIPO PAGAMENTO (enum) */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Tipo Pagamento</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Tipo Pagamento
+                </label>
                 <SelectInput
                   value={data.tipoPagamento ?? ""}
-                  onChange={(e) => setData("tipoPagamento", e.target.value || null)}
+                  onChange={(e) =>
+                    setData("tipoPagamento", e.target.value || null)
+                  }
                 >
                   <option value="">— seleziona —</option>
                   {paymentOpts.map((opt) => (
@@ -121,42 +148,67 @@ export default function Edit({
                     </option>
                   ))}
                 </SelectInput>
-                {errors.tipoPagamento && <p className="mt-1 text-sm text-red-600">{errors.tipoPagamento}</p>}
+                {errors.tipoPagamento && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.tipoPagamento}
+                  </p>
+                )}
               </div>
 
               {/* DATA SCADENZA */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Data Scadenza</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Data Scadenza
+                </label>
                 <input
                   type="date"
                   className="w-full rounded-md border-gray-300 shadow-sm"
                   value={data.dataScadenzaPagamento}
-                  onChange={(e) => setData("dataScadenzaPagamento", e.target.value)}
+                  onChange={(e) =>
+                    setData("dataScadenzaPagamento", e.target.value)
+                  }
                 />
                 {errors.dataScadenzaPagamento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.dataScadenzaPagamento}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.dataScadenzaPagamento}
+                  </p>
                 )}
               </div>
 
               {/* IMPORTO */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Importo</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Importo
+                </label>
                 <TextInput
                   type="number"
                   step="0.01"
                   value={data.importoPagamento}
-                  onChange={(e) => setData("importoPagamento", e.target.value)}
+                  onChange={(e) =>
+                    setData("importoPagamento", e.target.value)
+                  }
                 />
                 {errors.importoPagamento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.importoPagamento}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.importoPagamento}
+                  </p>
                 )}
               </div>
 
               {/* NOTE */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Note</label>
-                <TextInput value={data.note} onChange={(e) => setData("note", e.target.value)} />
-                {errors.note && <p className="mt-1 text-sm text-red-600">{errors.note}</p>}
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Note
+                </label>
+                <TextInput
+                  value={data.note}
+                  onChange={(e) => setData("note", e.target.value)}
+                />
+                {errors.note && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.note}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -3,13 +3,21 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm, router } from "@inertiajs/react";
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
-import { ArrowUturnLeftIcon, PencilSquareIcon } from "@heroicons/react/16/solid";
-import { ACCOUNTING_STATUS_CLASS_MAP, ACCOUNTING_STATUS_TEXT_MAP } from "@/constants.jsx";
+import {
+  ArrowUturnLeftIcon,
+  PencilSquareIcon,
+} from "@heroicons/react/16/solid";
+import {
+  ACCOUNTING_STATUS_CLASS_MAP,
+  ACCOUNTING_STATUS_TEXT_MAP,
+} from "@/constants.jsx";
 
 const toYmd = (v) => {
   if (!v) return "";
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
+  return Number.isNaN(d.getTime())
+    ? String(v).slice(0, 10)
+    : d.toISOString().slice(0, 10);
 };
 
 const formatEUR = (v) => {
@@ -36,26 +44,80 @@ const fmtDateIT = (val) => {
   return s;
 };
 
-// Etichetta stato per la TESTATA: "aperta" -> "Da saldare"
+// Etichetta stato per la TESTATA
 const accountingStatusLabel = (status) => {
   if (!status) return "";
   if (status === "aperta") return "Da saldare";
+  if (status === "parziale") return "Parzialmente";
   return ACCOUNTING_STATUS_TEXT_MAP[status] || status;
 };
 
-export default function Edit({ auth, accounting, detailAccountings = [], success, backQuery = null }) {
+// Calcola Totale / Pagato / Da pagare (come in Index)
+const computePaidSummary = (accounting, rows) => {
+  const total = Number(accounting?.ImportoTotaleDocumento ?? 0);
+  if (Number.isNaN(total)) {
+    return { total: 0, paid: 0, due: 0 };
+  }
+
+  // Per le note di credito (TD04) gli importi sono negativi
+  const sign = accounting?.TipoDocumento === "TD04" ? -1 : 1;
+
+  const paid = rows
+    .filter((r) => r.stato === "pagata")
+    .reduce((sum, r) => {
+      const v = Number(r.importoPagamento ?? 0);
+      if (Number.isNaN(v)) return sum;
+      return sum + sign * v;
+    }, 0);
+
+  const due = total - paid;
+
+  return { total, paid, due };
+};
+
+// Stato header basato su Totale / Pagato / Da pagare
+const computeHeaderStatus = (accounting, rows) => {
+  const { paid, due } = computePaidSummary(accounting, rows);
+  const EPS = 0.005;
+
+  // Pagato ≈ 0  => Da saldare
+  if (Math.abs(paid) < EPS) return "aperta";
+
+  // Da pagare ≈ 0 => Pagata
+  if (Math.abs(due) < EPS) return "pagata";
+
+  // Altrimenti parzialmente saldata
+  return "parziale";
+};
+
+export default function Edit({
+  auth,
+  accounting,
+  detailAccountings = [],
+  success,
+  backQuery = null,
+}) {
   const a = accounting?.data ?? accounting ?? {};
 
-  // campi allineati ai nomi backend
+  // dettagli righe pagamento
+  const rows = Array.isArray(detailAccountings?.data)
+    ? detailAccountings.data
+    : Array.isArray(detailAccountings)
+    ? detailAccountings
+    : [];
+
+  const { total, paid, due } = computePaidSummary(a, rows);
+  const headerStatus = computeHeaderStatus(a, rows);
+
+  // campi allineati ai nomi backend (senza Stato: non è più editabile)
   const { data, setData, put, processing, errors } = useForm({
     Progressivo: a?.Progressivo ?? "",
     ProgressivoInvio: a?.ProgressivoInvio ?? "",
     FornitoreNome: a?.FornitoreNome ?? "",
     Numero: a?.Numero ?? "",
-    Note: a?.Note ?? "", // nuovo campo in input singola riga
+    Note: a?.Note ?? "",
     Data: a?.Data ?? "",
     ImportoTotaleDocumento: a?.ImportoTotaleDocumento ?? "",
-    Stato: a?.Stato ?? "",
   });
 
   const onSubmit = (e) => {
@@ -63,26 +125,23 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
     if (!a?.id) return;
 
     // Includo backQuery nella route update per mantenere page + filtri
-    const params = backQuery ? { accounting: a.id, ...backQuery } : { accounting: a.id };
+    const params = backQuery
+      ? { accounting: a.id, ...backQuery }
+      : { accounting: a.id };
 
-    // update "classico" (il segno viene gestito dal controller quando si cambia TipoDocumento via patchField)
     put(route("accounting.update", params), {
       preserveScroll: true,
     });
   };
 
-  // dettagli
-  const rows = Array.isArray(detailAccountings?.data)
-    ? detailAccountings.data
-    : Array.isArray(detailAccountings)
-    ? detailAccountings
-    : [];
-
   // helper per importi coerenti con tipo documento
-  const signed = (tipo, v) => ((tipo === "TD04") ? -1 : 1) * Number(v ?? 0);
+  const signed = (tipo, v) =>
+    (tipo === "TD04" ? -1 : 1) * Number(v ?? 0);
 
   // back URL con eventuali query di ritorno
-  const backHref = backQuery ? route("accounting.index", backQuery) : route("accounting.index");
+  const backHref = backQuery
+    ? route("accounting.index", backQuery)
+    : route("accounting.index");
 
   return (
     <AuthenticatedLayout user={auth?.user}>
@@ -93,7 +152,10 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">
-              Modifica Documento {a?.id ? <span className="text-gray-400">#{a.id}</span> : null}
+              Modifica Documento{" "}
+              {a?.id ? (
+                <span className="text-gray-400">#{a.id}</span>
+              ) : null}
             </h1>
 
             {a?.TipoDocumento && (
@@ -105,7 +167,9 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                     : "bg-indigo-50 text-indigo-700 border-indigo-200")
                 }
               >
-                {a.TipoDocumento === "TD04" ? "Nota di credito (TD04)" : "Fattura (TD01)"}
+                {a.TipoDocumento === "TD04"
+                  ? "Nota di credito (TD04)"
+                  : "Fattura (TD01)"}
               </span>
             )}
           </div>
@@ -131,7 +195,9 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               {/* Tipo documento (patch immediato per riallineo segno) */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Tipo documento</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Tipo documento
+                </label>
                 <SelectInput
                   value={a?.TipoDocumento ?? "TD01"}
                   onChange={(e) => {
@@ -148,109 +214,180 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                   <option value="TD04">Nota di credito (TD04)</option>
                 </SelectInput>
                 <p className="mt-1 text-xs text-gray-500">
-                  Se imposti <strong>Nota di credito</strong>, il totale verrà salvato automaticamente con segno negativo.
+                  Se imposti <strong>Nota di credito</strong>, il totale
+                  verrà salvato automaticamente con segno negativo.
                 </p>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Progressivo</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Progressivo
+                </label>
                 <TextInput
                   value={data.Progressivo}
-                  onChange={(e) => setData("Progressivo", e.target.value)}
+                  onChange={(e) =>
+                    setData("Progressivo", e.target.value)
+                  }
                 />
-                {errors.Progressivo && <p className="mt-1 text-sm text-red-600">{errors.Progressivo}</p>}
+                {errors.Progressivo && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.Progressivo}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Progressivo Invio</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Progressivo Invio
+                </label>
                 <TextInput
                   value={data.ProgressivoInvio}
-                  onChange={(e) => setData("ProgressivoInvio", e.target.value)}
+                  onChange={(e) =>
+                    setData("ProgressivoInvio", e.target.value)
+                  }
                 />
-                {errors.ProgressivoInvio && <p className="mt-1 text-sm text-red-600">{errors.ProgressivoInvio}</p>}
+                {errors.ProgressivoInvio && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.ProgressivoInvio}
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Fornitore</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Fornitore
+                </label>
                 <TextInput
                   value={data.FornitoreNome}
-                  onChange={(e) => setData("FornitoreNome", e.target.value)}
+                  onChange={(e) =>
+                    setData("FornitoreNome", e.target.value)
+                  }
                 />
-                {errors.FornitoreNome && <p className="mt-1 text-sm text-red-600">{errors.FornitoreNome}</p>}
+                {errors.FornitoreNome && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.FornitoreNome}
+                  </p>
+                )}
               </div>
 
               {/* --- RIGA: Numero | Note --- */}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Numero</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Numero
+                </label>
                 <TextInput
                   value={data.Numero}
-                  onChange={(e) => setData("Numero", e.target.value)}
+                  onChange={(e) =>
+                    setData("Numero", e.target.value)
+                  }
                 />
-                {errors.Numero && <p className="mt-1 text-sm text-red-600">{errors.Numero}</p>}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Note</label>
-                <TextInput
-                  value={data.Note}
-                  onChange={(e) => setData("Note", e.target.value)}
-                  placeholder="Annotazioni / Causale"
-                />
-                {errors.Note && <p className="mt-1 text-sm text-red-600">{errors.Note}</p>}
-              </div>
-
-              {/* --- RIGA: Data | Stato --- */}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
-                <TextInput
-                  type="date"
-                  value={toYmd(data.Data)}
-                  onChange={(e) => setData("Data", e.target.value)}
-                />
-                {errors.Data && <p className="mt-1 text-sm text-red-600">{errors.Data}</p>}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Stato</label>
-                <SelectInput value={data.Stato} onChange={(e) => setData("Stato", e.target.value)}>
-                  <option value="">— seleziona —</option>
-                  {Object.keys(ACCOUNTING_STATUS_TEXT_MAP).map((key) => (
-                    <option key={key} value={key}>
-                      {accountingStatusLabel(key)}
-                    </option>
-                  ))}
-                </SelectInput>
-                {errors.Stato && <p className="mt-1 text-sm text-red-600">{errors.Stato}</p>}
-                {data.Stato && (
-                  <div className="mt-2 inline-flex items-center gap-2">
-                    <span
-                      className={
-                        `inline-block rounded px-2 py-0.5 text-xs ${ACCOUNTING_STATUS_CLASS_MAP[data.Stato]}`
-                      }
-                    >
-                      {accountingStatusLabel(data.Stato)}
-                    </span>
-                  </div>
+                {errors.Numero && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.Numero}
+                  </p>
                 )}
               </div>
 
-              {/* --- NUOVA RIGA: Totale a tutta larghezza --- */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Note
+                </label>
+                <TextInput
+                  value={data.Note}
+                  onChange={(e) =>
+                    setData("Note", e.target.value)
+                  }
+                  placeholder="Annotazioni / Causale"
+                />
+                {errors.Note && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.Note}
+                  </p>
+                )}
+              </div>
+
+              {/* --- RIGA: Data | Stato (solo lettura calcolato) --- */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Data
+                </label>
+                <TextInput
+                  type="date"
+                  value={toYmd(data.Data)}
+                  onChange={(e) =>
+                    setData("Data", e.target.value)
+                  }
+                />
+                {errors.Data && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.Data}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Stato fattura
+                </label>
+
+                <div className="mt-1 flex flex-col gap-1">
+                  <div className="inline-flex flex-wrap items-center gap-2">
+                    <span
+                      className={
+                        "inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold text-white " +
+                        (ACCOUNTING_STATUS_CLASS_MAP[headerStatus] ||
+                          "bg-gray-500")
+                      }
+                    >
+                      {accountingStatusLabel(headerStatus)}
+                    </span>
+
+                    <span className="text-xs text-gray-600">
+                      Pagato:{" "}
+                      <span className="font-semibold text-emerald-700">
+                        {formatEUR(paid)}
+                      </span>
+                      {" · "}
+                      Da pagare:{" "}
+                      <span className="font-semibold text-rose-700">
+                        {formatEUR(due)}
+                      </span>
+                    </span>
+                  </div>
+
+
+                </div>
+              </div>
+
+              {/* --- Totale a tutta larghezza --- */}
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-gray-700">Totale</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Totale
+                </label>
                 <TextInput
                   type="number"
                   step="0.01"
                   value={data.ImportoTotaleDocumento}
-                  onChange={(e) => setData("ImportoTotaleDocumento", e.target.value)}
+                  onChange={(e) =>
+                    setData(
+                      "ImportoTotaleDocumento",
+                      e.target.value
+                    )
+                  }
                 />
                 {errors.ImportoTotaleDocumento && (
-                  <p className="mt-1 text-sm text-red-600">{errors.ImportoTotaleDocumento}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.ImportoTotaleDocumento}
+                  </p>
                 )}
                 <p className="mt-1 text-xs text-gray-500">
                   Anteprima:{" "}
                   <span className="font-medium">
                     {formatEUR(
-                      Number((a?.TipoDocumento === "TD04" ? -1 : 1) * Number(data.ImportoTotaleDocumento || 0))
+                      Number(
+                        (a?.TipoDocumento === "TD04" ? -1 : 1) *
+                          Number(data.ImportoTotaleDocumento || 0)
+                      )
                     )}
                   </span>
                 </p>
@@ -291,12 +428,24 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Stato</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Modalità Pagamento</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Tipo Pagamento</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Data Scadenza</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Importo</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-700">Note</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Stato
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Modalità Pagamento
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Tipo Pagamento
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Data Scadenza
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Importo
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-700">
+                      Note
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,7 +456,8 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                           {row.stato ? (
                             <span
                               className={
-                                "px-2 py-1 rounded text-white " + ACCOUNTING_STATUS_CLASS_MAP[row.stato]
+                                "px-2 py-1 rounded text-white " +
+                                ACCOUNTING_STATUS_CLASS_MAP[row.stato]
                               }
                             >
                               {ACCOUNTING_STATUS_TEXT_MAP[row.stato]}
@@ -316,18 +466,34 @@ export default function Edit({ auth, accounting, detailAccountings = [], success
                             "-"
                           )}
                         </td>
-                        <td className="px-4 py-2">{row.modalitaPagamento ?? "-"}</td>
-                        <td className="px-4 py-2">{row.tipoPagamento ?? "-"}</td>
-                        <td className="px-4 py-2">{fmtDateIT(row.dataScadenzaPagamento)}</td>
                         <td className="px-4 py-2">
-                          {formatEUR(signed(a?.TipoDocumento, row.importoPagamento))}
+                          {row.modalitaPagamento ?? "-"}
                         </td>
-                        <td className="px-4 py-2">{row.note ?? "-"}</td>
+                        <td className="px-4 py-2">
+                          {row.tipoPagamento ?? "-"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {fmtDateIT(row.dataScadenzaPagamento)}
+                        </td>
+                        <td className="px-4 py-2">
+                          {formatEUR(
+                            signed(
+                              a?.TipoDocumento,
+                              row.importoPagamento
+                            )
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {row.note ?? "-"}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="px-4 py-6 text-center text-gray-500" colSpan={6}>
+                      <td
+                        className="px-4 py-6 text-center text-gray-500"
+                        colSpan={6}
+                      >
                         Nessun dettaglio disponibile.
                       </td>
                     </tr>

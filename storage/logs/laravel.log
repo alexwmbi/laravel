@@ -10,3 +10,9 @@
 [2025-11-16 17:01:27] local.INFO: 🔁 Inizio elaborazione file: 789_IT00301010971_00DWB.xml  
 [2025-11-16 17:01:27] local.WARNING: ⚠️ [789_IT00301010971_00DWB.xml] Campi mancanti/empty: FornitoreTelefono, FornitoreEmail, UfficioRea, NumeroRea, CapitaleSocialeRea, SocioUnicoRea, StatoLiquidazioneRea, CodiceArticoloTipo1, CodiceArticoloValore1, CodiceArticoloTipo2, CodiceArticoloValore2, Quantita, UnitaMisura, ModalitaPagamento2, DataScadenzaPagamento2, ImportoPagamento2, Note  
 [2025-11-16 17:01:27] local.INFO: ✅ [789_IT00301010971_00DWB.xml] Importazione riuscita.  
+[2025-11-19 20:48:16] local.INFO: 🚨 Entra nel metodo store  
+[2025-11-19 20:48:16] local.INFO: 🧪 File ricevuti: 1  
+[2025-11-19 20:48:16] local.INFO: 🔁 Inizio elaborazione file: fattura_149.xml  
+[2025-11-19 20:48:16] local.INFO: 🧾 [fattura_149.xml] Riga bollo rilevata {"Numero":2,"Descrizione":"Rimborso spese di bollo","PrezzoTotale":2.0,"AliquotaIVA":0.0,"Natura":"N2.2"} 
+[2025-11-19 20:48:16] local.WARNING: ⚠️ [fattura_149.xml] Campi mancanti/empty: FornitoreTelefono, FornitoreEmail, UfficioRea, NumeroRea, CapitaleSocialeRea, SocioUnicoRea, StatoLiquidazioneRea, CodiceArticoloTipo1, CodiceArticoloValore1, CodiceArticoloTipo2, CodiceArticoloValore2, Quantita, UnitaMisura, RiepilogoEsigibilitaIVA, DataScadenzaPagamento1, ModalitaPagamento2, DataScadenzaPagamento2, ImportoPagamento2, Note  
+[2025-11-19 20:48:16] local.INFO: ✅ [fattura_149.xml] Importazione riuscita.  
