@@ -67,6 +67,44 @@ const computeAccountingStatus = (accounting) => {
   return "parziale";
 };
 
+// === Calcola quanto è stato pagato e quanto resta da pagare per una fattura
+const computePaidSummary = (accounting) => {
+  const details = accounting?.detail_accounting || [];
+
+  const total = Number(accounting?.ImportoTotaleDocumento ?? 0);
+  if (Number.isNaN(total)) {
+    return {
+      total: 0,
+      paid: 0,
+      due: 0,
+    };
+  }
+
+  if (!details.length) {
+    return {
+      total,
+      paid: 0,
+      due: total,
+    };
+  }
+
+  // Per le note di credito (TD04) gli importi sono negativi
+  const sign = accounting?.TipoDocumento === "TD04" ? -1 : 1;
+
+  // Sommo solo le righe con stato = "pagata"
+  const paid = details
+    .filter((d) => d.stato === "pagata")
+    .reduce((sum, d) => {
+      const v = Number(d.importoPagamento ?? 0);
+      if (Number.isNaN(v)) return sum;
+      return sum + sign * v;
+    }, 0);
+
+  const due = total - paid;
+
+  return { total, paid, due };
+};
+
 // Testo custom per lo stato di testata: "aperta" -> "Da saldare"
 const accountingStatusLabel = (status) => {
   if (!status) return "";
@@ -233,7 +271,9 @@ export default function Index({
                     type="date"
                     className="w-full"
                     defaultValue={queryParams.date_from || ""}
-                    onChange={(e) => searchFieldChanged("date_from", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("date_from", e.target.value)
+                    }
                   />
                 </div>
 
@@ -246,7 +286,9 @@ export default function Index({
                     type="date"
                     className="w-full"
                     defaultValue={queryParams.date_to || ""}
-                    onChange={(e) => searchFieldChanged("date_to", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("date_to", e.target.value)
+                    }
                   />
                 </div>
 
@@ -259,7 +301,9 @@ export default function Index({
                     type="date"
                     className="w-full"
                     defaultValue={queryParams.due_from || ""}
-                    onChange={(e) => searchFieldChanged("due_from", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("due_from", e.target.value)
+                    }
                   />
                 </div>
 
@@ -272,7 +316,9 @@ export default function Index({
                     type="date"
                     className="w-full"
                     defaultValue={queryParams.due_to || ""}
-                    onChange={(e) => searchFieldChanged("due_to", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("due_to", e.target.value)
+                    }
                   />
                 </div>
 
@@ -284,7 +330,9 @@ export default function Index({
                   <SelectInput
                     className="w-full"
                     defaultValue={queryParams.stato || ""}
-                    onChange={(e) => searchFieldChanged("stato", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("stato", e.target.value)
+                    }
                   >
                     <option value="">Tutti</option>
                     <option value="aperta">Da saldare</option>
@@ -301,7 +349,9 @@ export default function Index({
                   <SelectInput
                     className="w-full"
                     defaultValue={queryParams.tipo_documento || ""}
-                    onChange={(e) => searchFieldChanged("tipo_documento", e.target.value)}
+                    onChange={(e) =>
+                      searchFieldChanged("tipo_documento", e.target.value)
+                    }
                   >
                     <option value="">Tutti</option>
                     <option value="TD01">Fattura (TD01)</option>
@@ -473,9 +523,7 @@ export default function Index({
                           type="checkbox"
                           className="border-gray-300"
                           checked={hideDetails}
-                          onChange={() =>
-                            setHideDetails((prev) => !prev)
-                          }
+                          onChange={() => setHideDetails((prev) => !prev)}
                         />
                         <span>Nascondi righe pagamento</span>
                       </label>
@@ -490,6 +538,10 @@ export default function Index({
 
                   {accountings.data.map((a) => {
                     const headerStatus = computeAccountingStatus(a);
+                    const { total, paid, due } = computePaidSummary(a);
+                    const hasDetails =
+                      Array.isArray(a.detail_accounting) &&
+                      a.detail_accounting.length > 0;
 
                     return (
                       <React.Fragment key={a.id}>
@@ -563,132 +615,160 @@ export default function Index({
                           </td>
                         </tr>
 
-                        {/* Righe pagamento (nascoste se hideDetails = true) */}
-                        {!hideDetails &&
-                          a.detail_accounting &&
-                          a.detail_accounting.length > 0 && (
-                            <tr>
-                              <td colSpan={7} className="pt-2">
-                                <div className="flex justify-between items-center">
-                                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                                    Righe pagamento
-                                  </div>
-
-                                  <button
-                                    onClick={() => addDetailRow(a.id)}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold
-                                              bg-amber-100 text-orange-600 border border-amber-200 shadow-sm
-                                              hover:bg-amber-200 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                                  >
-                                    <span className="text-sm leading-none">
-                                      +
+                        {/* Riepilogo Totale / Pagato / Da pagare (se ci sono righe pagamento) */}
+                        {hasDetails && (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-3 pt-1 pb-3 text-xs text-gray-700 dark:text-gray-300 bg-slate-50 dark:bg-slate-900/40 border-b border-dashed border-gray-200 dark:border-gray-700"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-4">
+                                  <span className="font-semibold uppercase tracking-wide">
+                                    Stato pagamenti
+                                  </span>
+                                  <span>
+                                    Totale documento:{" "}
+                                    <span className="font-semibold">
+                                      {formatEUR(total)}
                                     </span>
-                                    Aggiungi riga
-                                  </button>
+                                  </span>
+                                  <span>
+                                    Pagato:{" "}
+                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                      {formatEUR(paid)}
+                                    </span>
+                                  </span>
+                                  <span>
+                                    Da pagare:{" "}
+                                    <span className="font-semibold text-rose-700 dark:text-rose-400">
+                                      {formatEUR(due)}
+                                    </span>
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Righe pagamento (nascoste se hideDetails = true) */}
+                        {!hideDetails && hasDetails && (
+                          <tr>
+                            <td colSpan={7} className="pt-2">
+                              <div className="flex justify-between items-center">
+                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
+                                  Righe pagamento
                                 </div>
 
-                                <table className="w-full table-fixed text-center text-sm text-gray-600 dark:text-gray-300 border mt-2 rounded-md overflow-hidden">
-                                  <colgroup>
-                                    <col className="w-[12ch]" />
-                                    <col className="w-[24ch]" />
-                                    <col className="w-[20ch]" />
-                                    <col className="w-[16ch]" />
-                                    <col className="w-[14ch]" />
-                                    <col />
-                                    <col className="w-[10ch]" />
-                                  </colgroup>
-                                  <thead className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
-                                    <tr>
-                                      <th className="px-3 py-2">STATO</th>
-                                      <th className="px-3 py-2">
-                                        MODALITÀ PAGAMENTO
-                                      </th>
-                                      <th className="px-3 py-2">
-                                        TIPO PAGAMENTO
-                                      </th>
-                                      <th className="px-3 py-2">
-                                        DATA SCADENZA
-                                      </th>
-                                      <th className="px-3 py-2">IMPORTO</th>
-                                      <th className="px-3 py-2">NOTE</th>
-                                      <th className="px-3 py-2">AZIONI</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {a.detail_accounting.map((d) => (
-                                      <tr
-                                        key={d.id}
-                                        className="bg-white dark:bg-gray-800"
-                                      >
-                                        <td className="px-3 py-2">
-                                          <span
-                                            className={
-                                              "px-2 py-1 rounded text-white " +
-                                              ACCOUNTING_STATUS_CLASS_MAP[
-                                                d.stato
-                                              ]
-                                            }
-                                          >
-                                            {
-                                              ACCOUNTING_STATUS_TEXT_MAP[
-                                                d.stato
-                                              ]
-                                            }
-                                          </span>
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {d.modalitaPagamento}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {d.tipoPagamento || "-"}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {fmtDateIT(d.dataScadenzaPagamento)}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {formatEUR(
-                                            (a.TipoDocumento === "TD04"
-                                              ? -1
-                                              : 1) *
-                                              Number(
-                                                d.importoPagamento ?? 0
-                                              )
-                                          )}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {d.note || ""}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          <div className="flex items-center justify-center gap-2">
-                                            <Link
-                                              href={route(
-                                                "detailaccounting.edit",
-                                                { detail: d.id, ...queryParams }
-                                              )}
-                                              className="text-blue-600 hover:text-blue-800"
-                                              title="Modifica riga"
-                                            >
-                                              <PencilSquareIcon className="w-5 h-5" />
-                                            </Link>
-                                            <button
-                                              onClick={() => deleteDetail(d)}
-                                              className="text-red-500 hover:text-red-700"
-                                              title="Elimina riga"
-                                              aria-label="Elimina riga"
-                                            >
-                                              <TrashIcon className="w-5 h-5" />
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                                <button
+                                  onClick={() => addDetailRow(a.id)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold
+                                              bg-amber-100 text-orange-600 border border-amber-200 shadow-sm
+                                              hover:bg-amber-200 hover:text-orange-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                                >
+                                  <span className="text-sm leading-none">
+                                    +
+                                  </span>
+                                  Aggiungi riga
+                                </button>
+                              </div>
 
-                                <div className="mt-8 mb-10 h-[3px] bg-black/80 rounded"></div>
-                              </td>
-                            </tr>
-                          )}
+                              <table className="w-full table-fixed text-center text-sm text-gray-600 dark:text-gray-300 border mt-2 rounded-md overflow-hidden">
+                                <colgroup>
+                                  <col className="w-[12ch]" />
+                                  <col className="w-[24ch]" />
+                                  <col className="w-[20ch]" />
+                                  <col className="w-[16ch]" />
+                                  <col className="w-[14ch]" />
+                                  <col />
+                                  <col className="w-[10ch]" />
+                                </colgroup>
+                                <thead className="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700">
+                                  <tr>
+                                    <th className="px-3 py-2">STATO</th>
+                                    <th className="px-3 py-2">
+                                      MODALITÀ PAGAMENTO
+                                    </th>
+                                    <th className="px-3 py-2">
+                                      TIPO PAGAMENTO
+                                    </th>
+                                    <th className="px-3 py-2">
+                                      DATA SCADENZA
+                                    </th>
+                                    <th className="px-3 py-2">IMPORTO</th>
+                                    <th className="px-3 py-2">NOTE</th>
+                                    <th className="px-3 py-2">AZIONI</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {a.detail_accounting.map((d) => (
+                                    <tr
+                                      key={d.id}
+                                      className="bg-white dark:bg-gray-800"
+                                    >
+                                      <td className="px-3 py-2">
+                                        <span
+                                          className={
+                                            "px-2 py-1 rounded text-white " +
+                                            ACCOUNTING_STATUS_CLASS_MAP[d.stato]
+                                          }
+                                        >
+                                          {
+                                            ACCOUNTING_STATUS_TEXT_MAP[
+                                              d.stato
+                                            ]
+                                          }
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {d.modalitaPagamento}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {d.tipoPagamento || "-"}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {fmtDateIT(d.dataScadenzaPagamento)}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {formatEUR(
+                                          (a.TipoDocumento === "TD04" ? -1 : 1) *
+                                            Number(d.importoPagamento ?? 0)
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {d.note || ""}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <Link
+                                            href={route(
+                                              "detailaccounting.edit",
+                                              { detail: d.id, ...queryParams }
+                                            )}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Modifica riga"
+                                          >
+                                            <PencilSquareIcon className="w-5 h-5" />
+                                          </Link>
+                                          <button
+                                            onClick={() => deleteDetail(d)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Elimina riga"
+                                            aria-label="Elimina riga"
+                                          >
+                                            <TrashIcon className="w-5 h-5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+
+                              <div className="mt-8 mb-10 h-[3px] bg-black/80 rounded"></div>
+                            </td>
+                          </tr>
+                        )}
                       </React.Fragment>
                     );
                   })}
