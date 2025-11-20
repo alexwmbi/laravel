@@ -30,6 +30,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashController::class, 'index'])->name('dashboard.index');
 
+    // 👇 EXPORT EXCEL PRIMA DEL RESOURCE
+    Route::get('/accounting/export', [AccountingController::class, 'export'])
+        ->name('accounting.export');
+
+    // 👇 XML della fattura (ok qui, non crea conflitti)
+    Route::get('/accounting/{accounting}/xml', [AccountingController::class, 'downloadXml'])
+        ->name('accounting.xml');
+
     // Resources
     Route::resource('attach', AttachController::class);
     Route::resource('client', ClientController::class);
@@ -43,49 +51,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('accounting', AccountingController::class);
     Route::resource('detailaccounting', DetailAccountingController::class)->except(['edit','update']);
 
-    // Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
-    // ->whereNumber('detail')
-    // ->name('detailaccounting.edit');
-     Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
-    ->whereNumber('detailaccounting')
-      ->name('detailaccounting.edit');
+    // EDIT dettaglio
+    Route::get('/detailaccounting/{detail}/edit', [AccountingController::class, 'editDetail'])
+        ->whereNumber('detail')
+        ->name('detailaccounting.edit');
 
-      // routes/web.php (nel gruppo con middleware auth)
-Route::get('/accounting/{accounting}/xml', [AccountingController::class, 'downloadXml'])
-    ->name('accounting.xml');
-
-
-// Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
-//     ->whereNumber('detail')
-//     ->name('detailaccounting.update');
-
-Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
-    ->whereNumber('detailaccounting')
-      ->name('detailaccounting.update');
-
-
+    // UPDATE dettaglio
+    Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDetail'])
+        ->whereNumber('detail')
+        ->name('detailaccounting.update');
 
     Route::resource('call', CallController::class);
 
     // Extra client
-    Route::get('/client/clientDetail/{client}', [ClientController::class, 'clientDetail'])->name('client.clientDetail');
+    Route::get('/client/clientDetail/{client}', [ClientController::class, 'clientDetail'])
+        ->name('client.clientDetail');
 
     // Accounting extra
-    Route::get('/accounting/edit/{accounting}', [AccountingController::class, 'editprog'])->name('accounting.editprog');
+    Route::get('/accounting/edit/{accounting}', [AccountingController::class, 'editprog'])
+        ->name('accounting.editprog');
 
     // === NUOVE ROTTE PER LE MODIFICHE ===
-    // Inline update dei singoli campi della fattura
     Route::patch('/accounting/{accounting}/field', [AccountingController::class, 'patchField'])
         ->name('accounting.patchField');
 
-    // Creazione riga pagamento (annidata nella fattura)
     Route::post('/accounting/{accounting}/details', [AccountingController::class, 'storeDetail'])
         ->name('accounting.details.store');
 
     // Import
     Route::post('/import/store', [ImportController::class, 'store'])->name('import.store');
     Route::get('/import/importMaterial', [ImportController::class, 'importMaterial'])->name('import.importMaterial');
-    // Route::get('/accounting/import', [AccountingController::class,'import'])->name('accounting.import');
 
     // Work extra
     Route::get('/work/print/{work}', [WorkController::class, 'print'])->name('work.print');
@@ -128,14 +123,14 @@ Route::put('/detailaccounting/{detail}', [AccountingController::class, 'updateDe
     // URL SDI
     Route::get('/work/invoiceXml/{work}', [WorkController::class, 'invoiceXml'])->name('work.invoiceXml');
 
-     Route::prefix('system/logs')->name('logs.')->group(function () {
-        Route::get('/',         [LogController::class, 'index'])->name('index');      // pagina Inertia
-        Route::get('/content',  [LogController::class, 'content'])->name('content');  // polling JSON
-        Route::post('/clear',   [LogController::class, 'clear'])->name('clear');      // svuota file
-        Route::get('/download', [LogController::class, 'download'])->name('download');// download file
+    Route::prefix('system/logs')->name('logs.')->group(function () {
+        Route::get('/',         [LogController::class, 'index'])->name('index');
+        Route::get('/content',  [LogController::class, 'content'])->name('content');
+        Route::post('/clear',   [LogController::class, 'clear'])->name('clear');
+        Route::get('/download', [LogController::class, 'download'])->name('download');
     });
-
 });
+
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

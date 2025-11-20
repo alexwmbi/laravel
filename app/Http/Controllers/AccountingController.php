@@ -91,7 +91,7 @@ class AccountingController extends Controller
         $numero              = $accountingData['Numero']                 ?? null;
         $dataDocumento       = $accountingData['Data']                   ?? null;
 
-        $query      = Accounting::query();
+        $query       = Accounting::query();
         $hasCriteria = false;
 
         // 1) ProgressivoInvio + fornitore
@@ -163,15 +163,103 @@ class AccountingController extends Controller
         return null;
     }
 
+    /**
+     * Calcola lo stato "di testata" in base a Totale / Pagato / Residuo,
+     * replicando la logica usata nella Index React.
+     */
+    private function computeHeaderStatus(float $total, float $paid): string
+    {
+        $due = $total - $paid;
+        $eps = 0.005; // tolleranza centesimi
+
+        // Pagato ≈ 0 => aperta (Da saldare)
+        if (abs($paid) < $eps) {
+            return 'aperta';
+        }
+
+        // Residuo ≈ 0 => pagata
+        if (abs($due) < $eps) {
+            return 'pagata';
+        }
+
+        // Altrimenti => parziale
+        return 'parziale';
+    }
+
+    /**
+     * Converte eventuali enum in stringa per export/CSV.
+     */
+    private function enumToString($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value) || is_numeric($value)) {
+            return (string) $value;
+        }
+
+        if ($value instanceof \BackedEnum) {
+            return (string) $value->value;
+        }
+
+        if ($value instanceof \UnitEnum) {
+            return (string) $value->name;
+        }
+
+        if (method_exists($value, '__toString')) {
+            return (string) $value;
+        }
+
+        return json_encode($value);
+    }
+
     public function index(Request $request)
     {
         // ===== 1) Base query con filtri =====
         $base = Accounting::query();
 
         // Stato (header)
+        // Stato (header) calcolato come in frontend: aperta / pagata / parziale
         if ($request->filled('stato')) {
-            $base->whereRaw('LOWER(`Stato`) = ?', [strtolower($request->string('stato'))]);
+            $stato = strtolower($request->string('stato'));
+
+            $base->where(function ($q) use ($stato) {
+                // Somma importi pagati per ogni fattura, con segno corretto per TD04
+                $sumPaidExpr = "COALESCE((
+            SELECT SUM(
+                CASE
+                    WHEN d.stato = 'pagata' THEN
+                        CASE
+                            WHEN accountings.TipoDocumento IN ('TD04')
+                                THEN -ABS(d.importoPagamento)
+                            ELSE ABS(d.importoPagamento)
+                        END
+                    ELSE 0
+                END
+            )
+            FROM detail_accountings d
+            WHERE d.accountingId = accountings.id
+        ), 0)";
+
+                $eps = 0.005; // stessa logica del frontend
+
+                if ($stato === 'aperta') {
+                    // Pagato ≈ 0
+                    $q->whereRaw("ABS($sumPaidExpr) < ?", [$eps]);
+                } elseif ($stato === 'pagata') {
+                    // Residuo ≈ 0 => totale - pagato ≈ 0
+                    $q->whereRaw("ABS(accountings.ImportoTotaleDocumento - $sumPaidExpr) < ?", [$eps]);
+                } elseif ($stato === 'parziale') {
+                    // Pagato > 0 E residuo > 0
+                    $q->whereRaw("
+                ABS($sumPaidExpr) >= ?
+                AND ABS(accountings.ImportoTotaleDocumento - $sumPaidExpr) >= ?
+            ", [$eps, $eps]);
+                }
+            });
         }
+
 
         if ($request->filled('progressivo')) {
             $base->where('Progressivo', 'like', '%' . $request->string('progressivo') . '%');
@@ -265,7 +353,7 @@ class AccountingController extends Controller
 
         // ===== 3) Listing con ordinamento/paginazione =====
         $tableQuery = (clone $base)
-            ->with(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
+            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         // Allowlist campi ordinamento
         $allowedSort = [
@@ -380,6 +468,7 @@ class AccountingController extends Controller
                 $dp     = is_array($dp) ? $dp : [];
                 $detPag = $asArray($dp['DettaglioPagamento'] ?? []);
 
+
                 $ced  = $header['CedentePrestatore'] ?? [];
                 $da   = $ced['DatiAnagrafici'] ?? [];
                 $ana  = $da['Anagrafica'] ?? [];
@@ -401,7 +490,7 @@ class AccountingController extends Controller
 
                 $rawCausale = $dgd['Causale'] ?? null;
                 if (is_array($rawCausale)) {
-                    $rawCausale = implode("\n", array_map(fn ($s) => is_scalar($s) ? (string) $s : json_encode($s), $rawCausale));
+                    $rawCausale = implode("\n", array_map(fn($s) => is_scalar($s) ? (string) $s : json_encode($s), $rawCausale));
                 } elseif (!is_null($rawCausale) && !is_scalar($rawCausale)) {
                     $rawCausale = json_encode($rawCausale);
                 }
@@ -565,7 +654,7 @@ class AccountingController extends Controller
                         . '|' . ($Accounting_array['FornitoreIdPaese'] ?? '');
                 }
 
-                $xmlHash         = sha1($xmlString);
+                $xmlHash          = sha1($xmlString);
                 $isBatchDuplicate = false;
 
                 foreach ($batchKeys as $k) {
@@ -629,7 +718,7 @@ class AccountingController extends Controller
                         ->selectRaw("MAX(CAST(SUBSTRING_INDEX(`Progressivo`, '_', 1) AS UNSIGNED)) as m")
                         ->value('m');
 
-                    $next                          = ((int) ($max ?? 0)) + 1;
+                    $next                            = ((int) ($max ?? 0)) + 1;
                     $Accounting_array['Progressivo'] = $next . '_' . $yy;
                 }
 
@@ -693,7 +782,7 @@ class AccountingController extends Controller
 
     public function show(Accounting $accounting)
     {
-        $accounting->load(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
+        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Show', [
             'accounting' => $accounting,
@@ -703,20 +792,20 @@ class AccountingController extends Controller
 
     public function edit(Accounting $accounting)
     {
-        $accounting->load(['detailAccounting' => fn ($q) => $q->orderBy('dataScadenzaPagamento')]);
+        $accounting->load(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
 
         return inertia('Accounting/Edit', [
             'accounting'        => new AccountingResource($accounting),
             'detailAccountings' => $accounting->detailAccounting->map(function ($d) {
                 return [
-                    'id'                  => $d->id,
-                    'accountingId'        => $d->accountingId,
-                    'stato'               => $d->stato,
-                    'modalitaPagamento'   => $d->modalitaPagamento,
-                    'tipoPagamento'       => $d->tipoPagamento,
+                    'id'                    => $d->id,
+                    'accountingId'          => $d->accountingId,
+                    'stato'                 => $d->stato,
+                    'modalitaPagamento'     => $d->modalitaPagamento,
+                    'tipoPagamento'         => $d->tipoPagamento,
                     'dataScadenzaPagamento' => $d->dataScadenzaPagamento,
-                    'importoPagamento'    => $d->importoPagamento,
-                    'note'                => $d->note,
+                    'importoPagamento'      => $d->importoPagamento,
+                    'note'                  => $d->note,
                 ];
             }),
             'backQuery' => request()->query() ?: null,
@@ -765,7 +854,7 @@ class AccountingController extends Controller
             'Note'                   => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
-        $tipo    = $data['TipoDocumento'] ?? $accounting->TipoDocumento;
+        $tipo     = $data['TipoDocumento'] ?? $accounting->TipoDocumento;
         $isCredit = in_array($tipo, self::CREDIT_NOTE_TYPES, true);
 
         if (array_key_exists('ImportoTotaleDocumento', $data) && $data['ImportoTotaleDocumento'] !== null) {
@@ -829,20 +918,277 @@ class AccountingController extends Controller
 
         return inertia('DetailAccounting/Edit', [
             'detailAccounting' => [
-                'id'                  => $detail->id,
-                'accountingId'        => $detail->accountingId,
-                'stato'               => $detail->stato,
-                'modalitaPagamento'   => $detail->modalitaPagamento,
-                'tipoPagamento'       => $detail->tipoPagamento,
+                'id'                    => $detail->id,
+                'accountingId'          => $detail->accountingId,
+                'stato'                 => $detail->stato,
+                'modalitaPagamento'     => $detail->modalitaPagamento,
+                'tipoPagamento'         => $detail->tipoPagamento,
                 'dataScadenzaPagamento' => $detail->dataScadenzaPagamento,
-                'importoPagamento'    => $detail->importoPagamento,
-                'note'                => $detail->note,
+                'importoPagamento'      => $detail->importoPagamento,
+                'note'                  => $detail->note,
             ],
             'statusOptions' => ['aperta', 'pagata', 'parziale'],
             'backQuery'     => request()->query() ?: null,
             'success'       => session('success'),
         ]);
     }
+
+    /**
+     * Esporta in XLSX la lista filtrata delle fatture.
+     * - Rispetta gli stessi filtri della index()
+     * - Se `hideDetails` = true NON esporta le righe pagamento
+     */
+    /**
+     * Esporta in CSV la lista filtrata delle fatture.
+     * - Rispetta gli stessi filtri della index()
+     * - Se `hideDetails` = true NON esporta le righe pagamento
+     */
+    /**
+     * Esporta in CSV la lista filtrata delle fatture.
+     * - Rispetta gli stessi filtri della index()
+     * - Se `hideDetails` = true NON esporta le righe pagamento
+     */
+    public function export(Request $request)
+    {
+        // ===== 1) Base query con gli stessi filtri della index =====
+        $base = Accounting::query();
+
+        // Stato (header)
+        // Stato (header) calcolato come in frontend: aperta / pagata / parziale
+        if ($request->filled('stato')) {
+            $stato = strtolower($request->string('stato'));
+
+            $base->where(function ($q) use ($stato) {
+                // Somma importi pagati per ogni fattura, con segno corretto per TD04
+                $sumPaidExpr = "COALESCE((
+            SELECT SUM(
+                CASE
+                    WHEN d.stato = 'pagata' THEN
+                        CASE
+                            WHEN accountings.TipoDocumento IN ('TD04')
+                                THEN -ABS(d.importoPagamento)
+                            ELSE ABS(d.importoPagamento)
+                        END
+                    ELSE 0
+                END
+            )
+            FROM detail_accountings d
+            WHERE d.accountingId = accountings.id
+        ), 0)";
+
+                $eps = 0.005; // stessa logica del frontend
+
+                if ($stato === 'aperta') {
+                    // Pagato ≈ 0
+                    $q->whereRaw("ABS($sumPaidExpr) < ?", [$eps]);
+                } elseif ($stato === 'pagata') {
+                    // Residuo ≈ 0 => totale - pagato ≈ 0
+                    $q->whereRaw("ABS(accountings.ImportoTotaleDocumento - $sumPaidExpr) < ?", [$eps]);
+                } elseif ($stato === 'parziale') {
+                    // Pagato > 0 E residuo > 0
+                    $q->whereRaw("
+                ABS($sumPaidExpr) >= ?
+                AND ABS(accountings.ImportoTotaleDocumento - $sumPaidExpr) >= ?
+            ", [$eps, $eps]);
+                }
+            });
+        }
+
+
+        if ($request->filled('progressivo')) {
+            $base->where('Progressivo', 'like', '%' . $request->string('progressivo') . '%');
+        }
+
+        if ($request->filled('progressivoinvio')) {
+            $base->where('ProgressivoInvio', 'like', '%' . $request->string('progressivoinvio') . '%');
+        }
+
+        $name = $request->input('name', $request->input('nome'));
+        if (filled($name)) {
+            $base->where('FornitoreNome', 'like', '%' . $name . '%');
+        }
+
+        if ($request->filled('numero')) {
+            $base->where('Numero', 'like', '%' . $request->string('numero') . '%');
+        }
+
+        // Data documento (da / a)
+        if ($request->filled('date_from')) {
+            $base->whereDate('Data', '>=', $request->date('date_from')->format('Y-m-d'));
+        }
+        if ($request->filled('date_to')) {
+            $base->whereDate('Data', '<=', $request->date('date_to')->format('Y-m-d'));
+        }
+
+        // Scadenza da / a (righe dettaglio)
+        if ($request->filled('due_from')) {
+            $base->whereHas('detailAccounting', function ($q) use ($request) {
+                $q->whereDate(
+                    'dataScadenzaPagamento',
+                    '>=',
+                    $request->date('due_from')->format('Y-m-d')
+                );
+            });
+        }
+
+        if ($request->filled('due_to')) {
+            $base->whereHas('detailAccounting', function ($q) use ($request) {
+                $q->whereDate(
+                    'dataScadenzaPagamento',
+                    '<=',
+                    $request->date('due_to')->format('Y-m-d')
+                );
+            });
+        }
+
+        // Tipo documento (TD01 fattura, TD04 nota di credito)
+        if ($request->filled('tipo_documento')) {
+            $base->where('TipoDocumento', '=', $request->string('tipo_documento'));
+        }
+
+        // ===== 2) Ordinamento come nella index =====
+        $tableQuery = (clone $base)
+            ->with(['detailAccounting' => fn($q) => $q->orderBy('dataScadenzaPagamento')]);
+
+        $allowedSort = [
+            'Progressivo',
+            'ProgressivoInvio',
+            'FornitoreNome',
+            'Numero',
+            'Data',
+            'ImportoTotaleDocumento',
+            'Stato',
+        ];
+
+        $sortField = $request->input('sort_field', 'Progressivo');
+        if (!in_array($sortField, $allowedSort, true)) {
+            $sortField = 'Progressivo';
+        }
+
+        $sortDirection = strtolower($request->input('sort_direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        if ($sortField === 'Progressivo') {
+            $dir = $sortDirection;
+
+            $tableQuery->orderByRaw("
+                CASE
+                  WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(RIGHT(`Progressivo`, 2) AS UNSIGNED)
+                  ELSE -1
+                END {$dir}
+            ")->orderByRaw("
+                CASE
+                  WHEN `Progressivo` REGEXP '^[0-9]+_[0-9]{2}$' THEN CAST(SUBSTRING_INDEX(`Progressivo`, '_', 1) AS UNSIGNED)
+                  ELSE CAST(`Progressivo` AS UNSIGNED)
+                END {$dir}
+            ");
+        } else {
+            $tableQuery->orderBy($sortField, $sortDirection);
+        }
+
+        // NIENTE paginazione per export: prendiamo tutte le righe filtrate
+        $accountings = $tableQuery->get();
+
+        // Flag "nascondi righe pagamento"
+        $hideDetails = filter_var($request->query('hideDetails'), FILTER_VALIDATE_BOOLEAN);
+
+        // ===== 3) Genero il CSV in memoria =====
+        $handle = fopen('php://temp', 'r+');
+
+        // Intestazioni fatture (testata)
+        fputcsv($handle, [
+            'PROGRESSIVO',
+            'FORNITORE',
+            'NUMERO',
+            'DATA',
+            'TIPO DOCUMENTO',
+            'IMPORTO DOCUMENTO',
+            'PAGATO',       // 👈 nuovo
+            'DA PAGARE',    // 👈 nuovo
+            'STATO',
+        ], ';');
+
+        foreach ($accountings as $a) {
+            // Totale documento (già con segno corretto per le NC)
+            $total = (float) $a->ImportoTotaleDocumento;
+
+            // Nota di credito?
+            $isCredit = in_array($a->TipoDocumento, self::CREDIT_NOTE_TYPES, true);
+
+            // Somma pagato (solo righe con stato = pagata)
+            $paid = 0.0;
+            foreach ($a->detailAccounting as $d) {
+                if ($this->enumToString($d->stato) === 'pagata') {
+                    $val = (float) $d->importoPagamento;
+                    $val = abs($val);
+                    if ($isCredit) {
+                        $val = -$val;
+                    }
+                    $paid += $val;
+                }
+            }
+
+            $due = $total - $paid;
+
+            fputcsv($handle, [
+                $a->Progressivo,
+                $a->FornitoreNome,
+                $a->Numero,
+                $a->Data,
+                $a->TipoDocumento,
+                $total,
+                $paid,
+                $due,
+                $this->enumToString($a->Stato),
+            ], ';');
+        }
+
+        // Se hideDetails = false, aggiungo anche le righe pagamento
+        if (!$hideDetails) {
+            // Riga vuota di separazione
+            fputcsv($handle, [], ';');
+
+            // Intestazioni dettagli pagamento
+            fputcsv($handle, [
+                'PROGRESSIVO FATTURA',
+                'STATO RIGA',
+                'MODALITA PAGAMENTO',
+                'TIPO PAGAMENTO',
+                'DATA SCADENZA',
+                'IMPORTO',
+                'NOTE',
+            ], ';');
+
+            foreach ($accountings as $a) {
+                foreach ($a->detailAccounting as $d) {
+                    fputcsv($handle, [
+                        $a->Progressivo,
+                        $this->enumToString($d->stato),
+                        $this->enumToString($d->modalitaPagamento),
+                        $this->enumToString($d->tipoPagamento),
+                        $d->dataScadenzaPagamento ?? '',
+                        $d->importoPagamento,
+                        $d->note ?? '',
+                    ], ';');
+                }
+            }
+        }
+
+        // Recupero il contenuto del CSV
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        $filename = 'contabilita_' . now('Europe/Rome')->format('Ymd_His') . '.csv';
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'              => 'no-cache',
+            'Expires'             => '0',
+        ]);
+    }
+
 
     public function downloadXml(Accounting $accounting)
     {
@@ -856,12 +1202,12 @@ class AccountingController extends Controller
             },
             $filename,
             [
-                'Content-Type'        => 'application/xml; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Content-Type'           => 'application/xml; charset=UTF-8',
+                'Content-Disposition'    => 'attachment; filename="' . $filename . '"',
                 'X-Content-Type-Options' => 'nosniff',
-                'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
-                'Pragma'              => 'no-cache',
-                'Expires'             => '0',
+                'Cache-Control'          => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma'                 => 'no-cache',
+                'Expires'                => '0',
             ]
         );
     }

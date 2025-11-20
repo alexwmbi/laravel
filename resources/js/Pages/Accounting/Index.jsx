@@ -182,6 +182,27 @@ export default function Index({
     });
   };
 
+    const handleExportXlsx = () => {
+    const params = new URLSearchParams();
+
+    // Usa esattamente gli stessi queryParams che già usi per i filtri
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== "") {
+        params.append(key, value);
+      }
+    });
+
+    // Stato del toggle Nascondi righe pagamento
+    params.set("hideDetails", hideDetails ? 1 : 0);
+
+    // Se usi Ziggy, route('accounting.export') è ok
+    const url = route("accounting.export") + "?" + params.toString();
+
+    // Forzo il download
+    window.location.href = url;
+  };
+
+
   const headCell = (label, field) => (
     <th
       onClick={() => sortChanged(field)}
@@ -512,18 +533,30 @@ export default function Index({
                       </SelectInput>
                     </th>
 
-                    {/* AZIONI: toggle "Nascondi righe pagamento" */}
+                                       {/* AZIONI: toggle "Nascondi righe pagamento" + bottone export */}
                     <th className="px-3 pb-3 pt-1 text-center align-middle">
-                      <label className="inline-flex items-center gap-1 text-xs cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="border-gray-300"
-                          checked={hideDetails}
-                          onChange={() => setHideDetails((prev) => !prev)}
-                        />
-                        <span>Nascondi righe pagamento</span>
-                      </label>
+                      <div className="flex flex-col items-center gap-2">
+                        <label className="inline-flex items-center gap-1 text-xs cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            className="border-gray-300"
+                            checked={hideDetails}
+                            onChange={() => setHideDetails((prev) => !prev)}
+                          />
+                          <span>Nascondi righe</span>
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={handleExportXlsx}
+                          className="px-3 py-1 text-xs font-semibold border border-gray-300 rounded-md shadow-sm
+                                     bg-white hover:bg-gray-50"
+                        >
+                          Esporta XLSX
+                        </button>
+                      </div>
                     </th>
+
                   </tr>
                 </thead>
 
