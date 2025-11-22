@@ -1,14 +1,6 @@
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Link, router } from "@inertiajs/react";
-import InputLabel from "@/Components/CurrentDate";
+import { router } from "@inertiajs/react";
 import { useState, useEffect } from "react";
-import WorkTasksTable from "../Work/WorkTasksTable";
-import CurrentDate from "@/Components/CurrentDate";
-
-// ELENCO TASK ORE E PREZZI
-// ELENCO MATERIALI CON PREZZI
-// PREZZO TOTALE LAVORO
-// ALLEGATI
 
 export default function Invoice({
   auth,
@@ -28,54 +20,64 @@ export default function Invoice({
 }) {
   queryParams = queryParams || {};
 
+  // ================== TIPO DOCUMENTO ==================
+  const [invoiceType, setInvoiceType] = useState("TD01");
+
+  const INVOICE_TYPES = [
+    { value: "TD01", label: "Fattura (TD01)" },
+    { value: "TD02", label: "Acconto / anticipo su fattura (TD02)" },
+    { value: "TD04", label: "Nota di credito (TD04)" },
+  ];
+
+  // ================== SELEZIONE TASK ==================
   const [selectedItemsTask, setSelectedItemsTask] = useState([]);
 
   function checkboxHandlerTask(e) {
-    let isSelected = e.target.checked;
-    let value = parseInt(e.target.value);
+    const isSelected = e.target.checked;
+    const value = parseInt(e.target.value, 10);
 
     if (isSelected) {
-      setSelectedItemsTask([...selectedItemsTask, value]);
+      setSelectedItemsTask((prev) => [...prev, value]);
     } else {
-      setSelectedItemsTask((prevData) => {
-        return prevData.filter((id) => {
-          return id !== value;
-        });
-      });
+      setSelectedItemsTask((prevData) => prevData.filter((id) => id !== value));
     }
   }
 
+  // ================== SELEZIONE MATERIALI ==================
   const [selectedItemsMaterials, setSelectedItemsMaterials] = useState([]);
 
   function checkboxHandlerMaterials(e) {
-    let isSelected = e.target.checked;
-    let value = parseInt(e.target.value);
+    const isSelected = e.target.checked;
+    const value = parseInt(e.target.value, 10);
 
     if (isSelected) {
-      setSelectedItemsMaterials([...selectedItemsMaterials, value]);
+      setSelectedItemsMaterials((prev) => [...prev, value]);
     } else {
-      setSelectedItemsMaterials((prevData) => {
-        return prevData.filter((id) => {
-          return id !== value;
-        });
-      });
+      setSelectedItemsMaterials((prevData) =>
+        prevData.filter((id) => id !== value)
+      );
     }
   }
 
+  // ================== POPOLA QUERY E INVIA (SOLO ANTEPRIMA) ==================
   const popolateQury = () => {
-    queryParams["selectedItemsMaterials"] = selectedItemsMaterials;
-    queryParams["selectedItemsTask"] = selectedItemsTask;
-    router.get(route("work.invoicePrint", work), queryParams);
+    const params = {
+      ...queryParams,
+      selectedItemsMaterials,
+      selectedItemsTask,
+      tipo_documento: invoiceType, // passa il tipo documento al backend
+    };
+
+    // SOLO anteprima fattura → nessun XML, nessun salvataggio
+    router.get(route("work.invoicePrint", work), params);
   };
 
+  // ================== CHECK / UNCHECK TUTTO ==================
   function checkAllHandlerTask() {
     if (tasks.data.length === selectedItemsTask.length) {
       setSelectedItemsTask([]);
     } else {
-      const taskIds = tasks.data.map((item) => {
-        return item.id;
-      });
-
+      const taskIds = tasks.data.map((item) => item.id);
       setSelectedItemsTask(taskIds);
     }
   }
@@ -84,21 +86,21 @@ export default function Invoice({
     if (detailmaterial.data.length === selectedItemsMaterials.length) {
       setSelectedItemsMaterials([]);
     } else {
-      const materialIds = detailmaterial.data.map((item) => {
-        return item.id;
-      });
-
+      const materialIds = detailmaterial.data.map((item) => item.id);
       setSelectedItemsMaterials(materialIds);
     }
   }
 
   useEffect(() => {
     let ignore = false;
-
-    if (!ignore) checkAllHandlerTask();checkAllHandlerMaterials();
+    if (!ignore) {
+      checkAllHandlerTask();
+      checkAllHandlerMaterials();
+    }
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -107,17 +109,48 @@ export default function Invoice({
       header={
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-xl text-blue-500 dark:text-gray-200 leading-tight">
-            {`Fattura`}
+            Fattura
           </h2>
         </div>
       }
     >
-      {/* <pre>{JSON.stringify(clientData, undefined, 1)}</pre> */}
-
       <div className="py-12">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
             <div className="p-6 text-gray-900 dark:text-gray-100">
+              {/* ================== BARRA SCELTA TIPO DOCUMENTO ================== */}
+              <div className="flex flex-wrap items-end justify-between mb-6 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tipo documento FatturaPA
+                  </label>
+                  <select
+                    className="border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm text-gray-900"
+                    value={invoiceType}
+                    onChange={(e) => setInvoiceType(e.target.value)}
+                  >
+                    {INVOICE_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {client && (
+                  <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                    <div className="font-semibold">
+                      {client.name || clientData?.name}
+                    </div>
+                    {client.cod_fiscale && (
+                      <div>CF: {client.cod_fiscale}</div>
+                    )}
+                    {client.piva && <div>P.IVA: {client.piva}</div>}
+                  </div>
+                )}
+              </div>
+
+              {/* ================== LAVORAZIONI ================== */}
               <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                 <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                   <p className="mb-2">LAVORAZIONI</p>
@@ -144,8 +177,6 @@ export default function Invoice({
                         <th className="px-3 py-2">DESCRIZIONE</th>
                         <th className="px-3 py-2">ORE</th>
                         <th className="px-3 py-2">COSTO</th>
-
-                        {/* <th className="px-3 py-2">TOTALE MATERIALI</th> */}
                       </tr>
                     </thead>
                     <tbody>
@@ -169,8 +200,6 @@ export default function Invoice({
                           <td className="px-3 py-2">{task.description}</td>
                           <td className="px-3 py-2">{task.hours}</td>
                           <td className="px-3 py-2">{task.hourspriece}</td>
-                          {/* <td className="px-3 py-2">{task.materials}</td> */}
-                          {/* <td className="px-3 py-2">{materialsTot}</td> */}
                         </tr>
                       ))}
                     </tbody>
@@ -178,6 +207,7 @@ export default function Invoice({
                 </div>
               </div>
 
+              {/* ================== MATERIALI ================== */}
               <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 m-7">
                 <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                   <p className="mb-2">MATERIALI</p>
@@ -200,7 +230,6 @@ export default function Invoice({
                         </th>
 
                         <th className="px-3 py-2">LAVORAZIONE ID</th>
-                        {/* <th className="px-3 py-2">ID</th> */}
                         <th className="px-3 py-2">DESCRIZIONE</th>
                         <th className="px-3 py-2">CODICE ARTICOLO</th>
                         <th className="px-3 py-2">PREZZO</th>
@@ -210,47 +239,51 @@ export default function Invoice({
                       </tr>
                     </thead>
                     <tbody>
-                      {detailmaterial.data.map((material) => (
-                        <tr
-                          className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
-                          key={material.id}
-                        >
-                          <td className="px-3 py-2">
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={selectedItemsMaterials.includes(
-                                  material.id
-                                )}
-                                value={material.id}
-                                onChange={checkboxHandlerMaterials}
-                              />
-                            </label>
-                          </td>
-                          <td className="px-3 py-2">{material.task}</td>
-                          {/* <td className="px-3 py-2">{material.id}</td> */}
-                          <td className="px-3 py-2">{material.name}</td>
-                          <td className="px-3 py-2">{material.code}</td>
-                          <td className="px-3 py-2">
-                            {/* {material.priece} */}
-                          {(material.priece * material.default_aug / 100) + (material.priece * material.custom_aug / 100) +  parseFloat (material.priece )  }
-                          </td>
-                          <td className="px-3 py-2">{material.quantity}</td>
-                          <td className="px-3 py-2">{material.um}</td>
-                          <td className="px-3 py-2">
-                            {/* {material.priece * material.quantity} */}
-                            {( parseFloat (material.priece * material.default_aug / 100) + parseFloat (material.priece * material.custom_aug / 100) +  parseFloat (material.priece ) ) * parseFloat (material.quantity)}
-                          </td>
-                        </tr>
-                      ))}
+                      {detailmaterial.data.map((material) => {
+                        const prezzoUnitario =
+                          (material.priece * material.default_aug) / 100 +
+                          (material.priece * material.custom_aug) / 100 +
+                          parseFloat(material.priece);
+
+                        const totaleRiga =
+                          prezzoUnitario * parseFloat(material.quantity);
+
+                        return (
+                          <tr
+                            className="bg-white border-b dark:bg-gray-700 dark:border-gray-700 hover:bg-purple-100"
+                            key={material.id}
+                          >
+                            <td className="px-3 py-2">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedItemsMaterials.includes(
+                                    material.id
+                                  )}
+                                  value={material.id}
+                                  onChange={checkboxHandlerMaterials}
+                                />
+                              </label>
+                            </td>
+                            <td className="px-3 py-2">{material.task}</td>
+                            <td className="px-3 py-2">{material.name}</td>
+                            <td className="px-3 py-2">{material.code}</td>
+                            <td className="px-3 py-2">{prezzoUnitario}</td>
+                            <td className="px-3 py-2">{material.quantity}</td>
+                            <td className="px-3 py-2">{material.um}</td>
+                            <td className="px-3 py-2">{totaleRiga}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {/* ================== BOTTONE OK ================== */}
               <div className="mt-4 text-right">
                 <button
-                  onClick={(e) => popolateQury()}
-                  // href={route("work.invoice", work)}
+                  onClick={popolateQury}
                   className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
                 >
                   Ok
@@ -260,12 +293,6 @@ export default function Invoice({
           </div>
         </div>
       </div>
-      {/*  <div>IDS: task
-      {selectedItemsTask.toString()}
-      </div>
-      <div>IDS: materials
-      {selectedItemsMaterials.toString()}
-      </div> */}
     </AuthenticatedLayout>
   );
 }

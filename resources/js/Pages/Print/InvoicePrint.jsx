@@ -5,12 +5,7 @@ import InputLabel from "@/Components/CurrentDate";
 import WorkTasksTable from "../Work/WorkTasksTable";
 import CurrentDate from "@/Components/CurrentDate";
 
-// ELENCO TASK ORE E PREZZI
-// ELENCO MATERIALI CON PREZZI
-// PREZZO TOTALE LAVORO
-// ALLEGATI
-
-export default function Invoice({
+export default function InvoicePrint({
   auth,
   detailmaterial,
   detailwork,
@@ -26,21 +21,13 @@ export default function Invoice({
   clientData,
   materialTaskDistinct,
   hourspriece,
+
+  // nuovi props dal controller
+  selectedItemsTask = [],
+  selectedItemsMaterials = [],
+  tipo_documento = "TD01",
 }) {
   queryParams = queryParams || {};
-
-  /* const PrintPdf = () => {
-return(
-  <div>
-
-<script src="pdf.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.js"></script>
-
-  </div>
-)
-
-
-  } */
 
   const totale = () => {
     return detailmaterial.map(
@@ -54,7 +41,7 @@ return(
 
   const downloadPdf = () => {
     const invoice = document.getElementById("invoice").innerHTML;
-    var opt = {
+    const opt = {
       margin: 0,
       filename: "myfile.pdf",
       image: {
@@ -70,54 +57,51 @@ return(
         orientation: "portrait",
       },
     };
+    // eslint-disable-next-line no-undef
     html2pdf().from(invoice).set(opt).save();
   };
+
+  // ================== URL XML CON GLI STESSI PARAMS ==================
+  const xmlUrl = route("work.invoiceXml", {
+    work: work.id ?? work, // di solito work.id basta
+    selectedItemsTask: selectedItemsTask,
+    selectedItemsMaterials: selectedItemsMaterials,
+    tipo_documento: tipo_documento,
+  });
 
   return (
     <AuthenticatedLayout
       user={auth.user}
       header={
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-4">
           <h2 className="font-semibold text-xl text-blue-500 dark:text-gray-200 leading-tight">
-            {`Fattura`}
+            Fattura
           </h2>
-          {/*     <div className="col-md-12 text-right mb-3">
-                <button id="download" >download pdf</button>
-            </div> */}
 
           <button
-            onClick={() => downloadPdf()}
+            onClick={downloadPdf}
             className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
           >
             SCARICA FATTURA
           </button>
 
-          {/*  <Link
-
-            id="download" className="bg-emerald-200 py-1 px-3 text-emerald-500 rounded shadow transition-all hover:bg-emerald-400 hover:text-white"
+          {/* Esporta XML SDI */}
+          <a
+            href={xmlUrl}
+            className="bg-indigo-200 py-1 px-3 text-indigo-600 rounded shadow transition-all hover:bg-indigo-400 hover:text-white"
           >
-            Stampa
-          </Link> */}
-                {/* Esporta XML SDI */}
-      <a
-  href={route("work.invoiceXml", work.id)}
-  className="bg-indigo-200 py-1 px-3 text-indigo-600 rounded shadow transition-all hover:bg-indigo-400 hover:text-white"
-  download
->
-  SCARICA XML PER SDI
-</a>
-
-
+            SCARICA XML PER SDI
+          </a>
         </div>
       }
     >
-      {/* <pre>{JSON.stringify(tasks, undefined, 1)}</pre>
-      <pre>{JSON.stringify(detailmaterial, undefined, 1)}</pre>  */}
       <div className="py-12 bg-white" id="invoice">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="content-start">
-              <p className="text-2xl align-top">CASTELLARE IMPIANTI S.N.C.</p>
+              <p className="text-2xl align-top">
+                CASTELLARE IMPIANTI S.N.C.
+              </p>
               <p className="text-xl align-top">di Mariottini Daniele & C.</p>
             </div>
             <div className="border-2 border-black-900 m-1 p-3 sm:rounded-lg">
@@ -125,6 +109,9 @@ return(
               <p>Preventivo n.{work.id}</p>
               <p>
                 Data <CurrentDate />
+              </p>
+              <p className="mt-2 text-xs">
+                Tipo documento FatturaPA: <strong>{tipo_documento}</strong>
               </p>
             </div>
           </div>
@@ -150,7 +137,7 @@ return(
                 </h2>
               </div>
               {tasks.data.length > 0 ? (
-                <dir className="overflow-auto">
+                <div className="overflow-auto">
                   <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase">
                       <tr className="text-nowrap bg-gray-100">
@@ -182,13 +169,13 @@ return(
                         <td className="px-3 py-2"></td>
                         <td className="px-3 py-2"></td>
                         <td className="px-3 py-2">{hoursTot}</td>
-                        <td className="px-3 py-2">{hourspriece} </td>
+                        <td className="px-3 py-2">{hourspriece}</td>
                       </tr>
                     </tbody>
                   </table>
-                </dir>
+                </div>
               ) : (
-                <div> NESSUN TASK SELEZIONATO</div>
+                <div>NESSUN TASK SELEZIONATO</div>
               )}
             </div>
           </div>
@@ -200,12 +187,10 @@ return(
                 </h2>
               </div>
               {detailmaterial.length > 0 ? (
-                <dir className="overflow-auto">
+                <div className="overflow-auto">
                   <table className="w-full text-left text-sm rtl:text-right text-gray-500 dark:text-gray-400">
                     <thead className="text-xs text-gray-700 uppercase">
                       <tr className="text-nowrap bg-gray-100">
-                        {/* <th className="px-3 py-2">TASK</th>
-                      <th className="px-3 py-2">ID</th> */}
                         <th className="px-3 py-2">LAVORAZIONE ID</th>
                         <th className="px-3 py-2">NAME</th>
                         <th className="px-3 py-2">CODE</th>
@@ -227,7 +212,6 @@ return(
                           <td className="px-3 py-2">{material.quantity}</td>
                           <td className="px-3 py-2">{material.um}</td>
                           <td className="px-3 py-2">
-                            {/* {material.priece} */}
                             {(material.priece * material.default_aug) / 100 +
                               (material.priece * material.custom_aug) / 100 +
                               parseFloat(material.priece)}
@@ -241,8 +225,6 @@ return(
                               ) +
                               parseFloat(material.priece)) *
                               parseFloat(material.quantity)}
-
-                            {/* {material.priece * material.quantity} */}
                           </td>
                         </tr>
                       ))}
@@ -257,14 +239,14 @@ return(
                       </tr>
                     </tbody>
                   </table>
-                </dir>
+                </div>
               ) : (
-                <div> NESSUN MATERIALE SELEZIONATO</div>
+                <div>NESSUN MATERIALE SELEZIONATO</div>
               )}
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 overflow-hidden  sm:rounded-lg">
+          <div className="bg-white dark:bg-gray-800 overflow-hidden sm:rounded-lg">
             <div className="p-6 text-gray-900 dark:text-gray-100">
               <div className="flex justify-between items-center px-16">
                 <div>TOTALE</div>

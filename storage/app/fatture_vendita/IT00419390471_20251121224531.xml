@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<p:FatturaElettronica xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" versione="FPR12">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente>
+        <IdPaese>IT</IdPaese>
+        <IdCodice>00419390471</IdCodice>
+      </IdTrasmittente>
+      <ProgressivoInvio>2025112122</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>0000000</CodiceDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA>
+          <IdPaese>IT</IdPaese>
+          <IdCodice>00419390471</IdCodice>
+        </IdFiscaleIVA>
+        <Anagrafica>
+          <Denominazione>CASTELLARE IMPIANTI S.N.C. di Mariottini Daniele &amp; C.</Denominazione>
+        </Anagrafica>
+        <RegimeFiscale>RF01</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>Via del Castellare</Indirizzo>
+        <CAP>51017</CAP>
+        <Comune>Pistoia</Comune>
+        <Provincia>PT</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <Anagrafica>
+          <Denominazione>cliente 3</Denominazione>
+        </Anagrafica>
+      </DatiAnagrafici>
+      <Sede>
+        <Indirizzo>ND</Indirizzo>
+        <CAP>00000</CAP>
+        <Comune>ND</Comune>
+        <Provincia>XX</Provincia>
+        <Nazione>IT</Nazione>
+      </Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>TD01</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>2025-11-21</Data>
+        <Numero>INV-19</Numero>
+        <ImportoTotaleDocumento>3619.95</ImportoTotaleDocumento>
+      </DatiGeneraliDocumento>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee>
+        <NumeroLinea>1</NumeroLinea>
+        <Descrizione>test</Descrizione>
+        <Quantita>4.00</Quantita>
+        <UnitaMisura>unita</UnitaMisura>
+        <PrezzoUnitario>100.00</PrezzoUnitario>
+        <PrezzoTotale>400.00</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>2</NumeroLinea>
+        <Descrizione>METALPIOMBO SRL</Descrizione>
+        <Quantita>5.00</Quantita>
+        <UnitaMisura>MT</UnitaMisura>
+        <PrezzoUnitario>12.61</PrezzoUnitario>
+        <PrezzoTotale>63.05</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>3</NumeroLinea>
+        <Descrizione>operaio 4</Descrizione>
+        <Quantita>10.00</Quantita>
+        <UnitaMisura>H</UnitaMisura>
+        <PrezzoUnitario>100.00</PrezzoUnitario>
+        <PrezzoTotale>1000.00</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>4</NumeroLinea>
+        <Descrizione>operaio 1</Descrizione>
+        <Quantita>5.00</Quantita>
+        <UnitaMisura>H</UnitaMisura>
+        <PrezzoUnitario>100.00</PrezzoUnitario>
+        <PrezzoTotale>500.00</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>5</NumeroLinea>
+        <Descrizione>GIUSTI MASSIMO</Descrizione>
+        <Quantita>2.00</Quantita>
+        <UnitaMisura>H</UnitaMisura>
+        <PrezzoUnitario>2.06</PrezzoUnitario>
+        <PrezzoTotale>4.12</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DettaglioLinee>
+        <NumeroLinea>6</NumeroLinea>
+        <Descrizione>operaio 4</Descrizione>
+        <Quantita>10.00</Quantita>
+        <UnitaMisura>H</UnitaMisura>
+        <PrezzoUnitario>100.00</PrezzoUnitario>
+        <PrezzoTotale>1000.00</PrezzoTotale>
+        <AliquotaIVA>22.00</AliquotaIVA>
+      </DettaglioLinee>
+      <DatiRiepilogo>
+        <AliquotaIVA>22.00</AliquotaIVA>
+        <ImponibileImporto>2967.17</ImponibileImporto>
+        <Imposta>652.78</Imposta>
+        <EsigibilitaIVA>I</EsigibilitaIVA>
+      </DatiRiepilogo>
+    </DatiBeniServizi>
+    <DatiPagamento>
+      <CondizioniPagamento>TP02</CondizioniPagamento>
+      <DettaglioPagamento>
+        <ModalitaPagamento>MP05</ModalitaPagamento>
+        <ImportoPagamento>3619.95</ImportoPagamento>
+      </DettaglioPagamento>
+    </DatiPagamento>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>
