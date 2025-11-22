@@ -62,7 +62,13 @@ export default function AuthenticatedLayout({ user, header, children }) {
                   href={route("accounting.index")}
                   active={route().current("accounting.index")}
                 >
-                  Contabilita
+                  Contabilita Acquisti
+                </NavLink>
+                 <NavLink
+                  href={route("salesinvoice.index")}
+                  active={route().current("salesinvoice.index")}
+                >
+                Contabilita Vendite
                 </NavLink>
                 <NavLink
                   href={route("call.index")}

@@ -140,4 +140,10 @@ class SalesInvoice extends Model
     {
         return $this->tipo_documento === 'TD04';
     }
+
+    public function payments()
+    {
+        return $this->hasMany(SalesInvoicePayment::class, 'sales_invoice_id');
+    }
+
 }

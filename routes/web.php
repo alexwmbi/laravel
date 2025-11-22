@@ -16,7 +16,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkController;
 use App\Http\Controllers\WorkerController;
 use App\Http\Controllers\System\LogController;
-
+use App\Http\Controllers\SalesInvoiceController;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -37,6 +37,42 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // 👇 XML della fattura (ok qui, non crea conflitti)
     Route::get('/accounting/{accounting}/xml', [AccountingController::class, 'downloadXml'])
         ->name('accounting.xml');
+
+            // ===== FATTURE DI VENDITA =====
+
+    // Export CSV/XLSX
+    Route::get('/salesinvoice/export', [SalesInvoiceController::class, 'export'])
+        ->name('salesinvoice.export');
+
+    // Download XML/PDF generati per SDI
+    Route::get('/salesinvoice/{salesInvoice}/xml', [SalesInvoiceController::class, 'downloadXml'])
+        ->whereNumber('salesInvoice')
+        ->name('salesinvoice.xml');
+
+    Route::get('/salesinvoice/{salesInvoice}/pdf', [SalesInvoiceController::class, 'downloadPdf'])
+        ->whereNumber('salesInvoice')
+        ->name('salesinvoice.pdf');
+
+    // CRUD rate pagamento
+    Route::post('/salesinvoice/{salesInvoice}/payments', [SalesInvoiceController::class, 'storePayment'])
+        ->whereNumber('salesInvoice')
+        ->name('salesinvoice.payments.store');
+
+    Route::get('/salesinvoice/payments/{payment}/edit', [SalesInvoiceController::class, 'editPayment'])
+        ->whereNumber('payment')
+        ->name('salesinvoice.payments.edit');
+
+    Route::put('/salesinvoice/payments/{payment}', [SalesInvoiceController::class, 'updatePayment'])
+        ->whereNumber('payment')
+        ->name('salesinvoice.payments.update');
+
+    Route::delete('/salesinvoice/payments/{payment}', [SalesInvoiceController::class, 'destroyPayment'])
+        ->whereNumber('payment')
+        ->name('salesinvoice.payments.destroy');
+
+    // Resource principale
+    Route::resource('salesinvoice', SalesInvoiceController::class);
+
 
     // Resources
     Route::resource('attach', AttachController::class);
